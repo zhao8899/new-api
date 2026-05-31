@@ -174,6 +174,15 @@ function MobileLogTimeStatus({
   )
 }
 
+function getOriginalField<TData>(
+  cell: Cell<TData, unknown> | undefined,
+  field: string
+) {
+  return cell
+    ? (cell.row.original as Record<string, unknown>)[field]
+    : undefined
+}
+
 function CommonLogsCard<TData>({
   cells,
 }: {
@@ -200,8 +209,8 @@ function CommonLogsCard<TData>({
             {t('Time')}
           </div>
           <MobileLogTimeStatus
-            createdAt={cells.get('created_at')?.row.original?.created_at}
-            type={cells.get('created_at')?.row.original?.type}
+            createdAt={getOriginalField(cells.get('created_at'), 'created_at')}
+            type={getOriginalField(cells.get('created_at'), 'type')}
           />
         </div>
         <SummaryField
