@@ -2,13 +2,17 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"embed"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -204,10 +208,59 @@ func main() {
 	// Log startup success message
 	common.LogStartupSuccess(startTime, port)
 
-	err = server.Run(":" + port)
-	if err != nil {
+	if err = runHTTPServer(":"+port, server); err != nil {
 		common.FatalLog("failed to start HTTP server: " + err.Error())
 	}
+}
+
+func runHTTPServer(addr string, handler http.Handler) error {
+	httpServer := &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: time.Duration(common.HTTPReadHeaderTimeoutSeconds) * time.Second,
+		ReadTimeout:       time.Duration(common.HTTPReadTimeoutSeconds) * time.Second,
+		WriteTimeout:      time.Duration(common.HTTPWriteTimeoutSeconds) * time.Second,
+		IdleTimeout:       time.Duration(common.HTTPIdleTimeoutSeconds) * time.Second,
+	}
+
+	serverErr := make(chan error, 1)
+	go func() {
+		serverErr <- httpServer.ListenAndServe()
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(quit)
+
+	select {
+	case err := <-serverErr:
+		if errors.Is(err, http.ErrServerClosed) {
+			return nil
+		}
+		return err
+	case sig := <-quit:
+		common.SysLog(fmt.Sprintf("received signal %s, shutting down HTTP server", sig))
+	}
+
+	shutdownTimeout := common.HTTPShutdownTimeoutSeconds
+	if shutdownTimeout <= 0 {
+		shutdownTimeout = 30
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(shutdownTimeout)*time.Second)
+	defer cancel()
+
+	if err := httpServer.Shutdown(ctx); err != nil {
+		return fmt.Errorf("graceful shutdown failed: %w", err)
+	}
+
+	select {
+	case err := <-serverErr:
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			return err
+		}
+	default:
+	}
+	return nil
 }
 
 func InjectUmamiAnalytics() {

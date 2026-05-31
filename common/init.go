@@ -47,7 +47,10 @@ func InitEnv() {
 		os.Exit(0)
 	}
 
-	if os.Getenv("SESSION_SECRET") != "" {
+	sessionSecretSet := os.Getenv("SESSION_SECRET") != ""
+	cryptoSecretSet := os.Getenv("CRYPTO_SECRET") != ""
+
+	if sessionSecretSet {
 		ss := os.Getenv("SESSION_SECRET")
 		if ss == "random_string" {
 			log.Println("WARNING: SESSION_SECRET is set to the default value 'random_string', please change it to a random string.")
@@ -57,7 +60,7 @@ func InitEnv() {
 			SessionSecret = ss
 		}
 	}
-	if os.Getenv("CRYPTO_SECRET") != "" {
+	if cryptoSecretSet {
 		CryptoSecret = os.Getenv("CRYPTO_SECRET")
 	} else {
 		CryptoSecret = SessionSecret
@@ -96,6 +99,9 @@ func InitEnv() {
 			}
 		}
 	}
+	if err := ValidateProductionSecurityConfig(sessionSecretSet, cryptoSecretSet); err != nil {
+		log.Fatal(err)
+	}
 
 	// Parse requestInterval and set RequestInterval
 	requestInterval, _ = strconv.Atoi(os.Getenv("POLLING_INTERVAL"))
@@ -107,6 +113,11 @@ func InitEnv() {
 	RelayTimeout = GetEnvOrDefault("RELAY_TIMEOUT", 0)
 	RelayMaxIdleConns = GetEnvOrDefault("RELAY_MAX_IDLE_CONNS", 500)
 	RelayMaxIdleConnsPerHost = GetEnvOrDefault("RELAY_MAX_IDLE_CONNS_PER_HOST", 100)
+	HTTPReadHeaderTimeoutSeconds = GetEnvOrDefault("HTTP_READ_HEADER_TIMEOUT", 10)
+	HTTPReadTimeoutSeconds = GetEnvOrDefault("HTTP_READ_TIMEOUT", 0)
+	HTTPWriteTimeoutSeconds = GetEnvOrDefault("HTTP_WRITE_TIMEOUT", 0)
+	HTTPIdleTimeoutSeconds = GetEnvOrDefault("HTTP_IDLE_TIMEOUT", 120)
+	HTTPShutdownTimeoutSeconds = GetEnvOrDefault("HTTP_SHUTDOWN_TIMEOUT", 30)
 
 	// Initialize string variables with GetEnvOrDefaultString
 	GeminiSafetySetting = GetEnvOrDefaultString("GEMINI_SAFETY_SETTING", "BLOCK_NONE")
