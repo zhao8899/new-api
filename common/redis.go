@@ -36,7 +36,12 @@ func InitRedisClient() (err error) {
 	if err != nil {
 		FatalLog("failed to parse Redis connection string: " + err.Error())
 	}
-	opt.PoolSize = GetEnvOrDefault("REDIS_POOL_SIZE", 10)
+	opt.PoolSize = GetEnvOrDefault("REDIS_POOL_SIZE", 100)
+	opt.MinIdleConns = GetEnvOrDefault("REDIS_MIN_IDLE_CONNS", 10)
+	if opt.MinIdleConns > opt.PoolSize {
+		opt.MinIdleConns = opt.PoolSize
+	}
+	opt.PoolTimeout = time.Duration(GetEnvOrDefault("REDIS_POOL_TIMEOUT", 5)) * time.Second
 	RDB = redis.NewClient(opt)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
