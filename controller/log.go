@@ -33,6 +33,33 @@ func GetAllLogs(c *gin.Context) {
 	return
 }
 
+func GetAuditEvents(c *gin.Context) {
+	pageInfo := common.GetPageQuery(c)
+	actorID, _ := strconv.Atoi(c.Query("actor_id"))
+	query := model.AuditEventQuery{
+		RequestID:    c.Query("request_id"),
+		ActorID:      actorID,
+		Action:       c.Query("action"),
+		ResourceType: c.Query("resource_type"),
+		ResourceID:   c.Query("resource_id"),
+		StartIdx:     pageInfo.GetStartIdx(),
+		Limit:        pageInfo.GetPageSize(),
+	}
+	events, err := model.ListAuditEvents(query)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	total, err := model.CountAuditEvents(query)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(events)
+	common.ApiSuccess(c, pageInfo)
+}
+
 func GetUserLogs(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	userId := c.GetInt("id")

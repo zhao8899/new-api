@@ -119,6 +119,7 @@ func GetChannel(group string, model string, retry int) (*Channel, error) {
 	if err != nil {
 		return nil, err
 	}
+	abilities = filterRoutableAbilities(abilities)
 	channel := Channel{}
 	if len(abilities) > 0 {
 		// Randomly choose one
@@ -141,6 +142,21 @@ func GetChannel(group string, model string, retry int) (*Channel, error) {
 	}
 	err = DB.First(&channel, "id = ?", channel.Id).Error
 	return &channel, err
+}
+
+func filterRoutableAbilities(abilities []Ability) []Ability {
+	if len(abilities) == 0 {
+		return abilities
+	}
+	routable := make([]Ability, 0, len(abilities))
+	for _, ability := range abilities {
+		ok, err := IsChannelHealthRoutable(ability.ChannelId)
+		if err != nil || !ok {
+			continue
+		}
+		routable = append(routable, ability)
+	}
+	return routable
 }
 
 func (channel *Channel) AddAbilities(tx *gorm.DB) error {
