@@ -16,6 +16,7 @@ var LogWriterMu sync.RWMutex
 
 func SysLog(s string) {
 	t := time.Now()
+	s = RedactSensitiveText(s)
 	LogWriterMu.RLock()
 	_, _ = fmt.Fprintf(gin.DefaultWriter, "[SYS] %v | %s \n", t.Format("2006/01/02 - 15:04:05"), s)
 	LogWriterMu.RUnlock()
@@ -23,6 +24,7 @@ func SysLog(s string) {
 
 func SysError(s string) {
 	t := time.Now()
+	s = RedactSensitiveText(s)
 	LogWriterMu.RLock()
 	_, _ = fmt.Fprintf(gin.DefaultErrorWriter, "[SYS] %v | %s \n", t.Format("2006/01/02 - 15:04:05"), s)
 	LogWriterMu.RUnlock()
@@ -30,6 +32,9 @@ func SysError(s string) {
 
 func FatalLog(v ...any) {
 	t := time.Now()
+	for index, value := range v {
+		v[index] = RedactSensitiveText(fmt.Sprint(value))
+	}
 	LogWriterMu.RLock()
 	_, _ = fmt.Fprintf(gin.DefaultErrorWriter, "[FATAL] %v | %v \n", t.Format("2006/01/02 - 15:04:05"), v)
 	LogWriterMu.RUnlock()

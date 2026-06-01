@@ -249,9 +249,22 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 var upgrader = websocket.Upgrader{
 	Subprotocols: []string{"realtime"}, // WS 握手支持的协议，如果有使用 Sec-WebSocket-Protocol，则必须在此声明对应的 Protocol TODO add other protocol
-	CheckOrigin: func(r *http.Request) bool {
-		return true // 允许跨域
-	},
+	CheckOrigin:  checkWebSocketOrigin,
+}
+
+func checkWebSocketOrigin(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return true
+	}
+	if common.IsCorsOriginAllowed(origin) {
+		return true
+	}
+	if common.CorsAllowAllOrigins && !common.IsProductionSecurityMode() {
+		return true
+	}
+	logger.LogWarn(r.Context(), fmt.Sprintf("websocket origin rejected: %s", origin))
+	return false
 }
 
 func addUsedChannel(c *gin.Context, channelId int) {
@@ -355,6 +368,7 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 
 func processChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError) {
 	logger.LogError(c, fmt.Sprintf("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, common.LocalLogPreview(err.Error())))
+	recordRelayChannelHealth(c, channelError, err)
 	// 不要使用context获取渠道信息，异步处理时可能会出现渠道信息不一致的情况
 	// do not use context to get channel info, there may be inconsistent channel info when processing asynchronously
 	if service.ShouldDisableChannel(err) && channelError.AutoBan {
@@ -398,6 +412,22 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		model.RecordErrorLog(c, userId, channelId, modelName, tokenName, err.MaskSensitiveErrorWithStatusCode(), tokenId, useTimeSeconds, common.GetContextKeyBool(c, constant.ContextKeyIsStream), userGroup, other)
 	}
 
+}
+
+func recordRelayChannelHealth(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError) {
+	if c == nil || err == nil || channelError.ChannelId <= 0 {
+		return
+	}
+	meta := model.GetDefaultProviderMetadataByChannelType(channelError.ChannelType)
+	modelName := c.GetString("original_model")
+	startTime := common.GetContextKeyTime(c, constant.ContextKeyRequestStartTime)
+	latencyMs := 0
+	if !startTime.IsZero() {
+		latencyMs = int(time.Since(startTime).Milliseconds())
+	}
+	if recordErr := service.RecordChannelHealthFromRelayError(channelError.ChannelId, meta.Provider, modelName, err, latencyMs); recordErr != nil {
+		logger.LogError(c, fmt.Sprintf("record channel health failed (channel #%d): %s", channelError.ChannelId, common.RedactSensitiveText(recordErr.Error())))
+	}
 }
 
 func RelayMidjourney(c *gin.Context) {

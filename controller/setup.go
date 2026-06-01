@@ -20,6 +20,7 @@ type SetupRequest struct {
 	Username           string `json:"username"`
 	Password           string `json:"password"`
 	ConfirmPassword    string `json:"confirmPassword"`
+	SetupToken         string `json:"setup_token"`
 	SelfUseModeEnabled bool   `json:"SelfUseModeEnabled"`
 	DemoSiteEnabled    bool   `json:"DemoSiteEnabled"`
 }
@@ -70,6 +71,18 @@ func PostSetup(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"success": false,
 			"message": "请求参数有误",
+		})
+		return
+	}
+
+	setupToken := req.SetupToken
+	if setupToken == "" {
+		setupToken = c.GetHeader("X-Setup-Token")
+	}
+	if err := common.ValidateSetupToken(setupToken); err != nil {
+		c.JSON(200, gin.H{
+			"success": false,
+			"message": "setup token validation failed: " + err.Error(),
 		})
 		return
 	}
