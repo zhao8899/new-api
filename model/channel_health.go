@@ -76,6 +76,28 @@ func GetChannelHealth(channelID int) (*ChannelHealth, bool, error) {
 	return &health, true, nil
 }
 
+func IsChannelHealthRoutable(channelID int) (bool, error) {
+	health, found, err := GetChannelHealth(channelID)
+	if err != nil {
+		return false, err
+	}
+	if !found {
+		return true, nil
+	}
+	now := common.GetTimestamp()
+	switch health.CircuitState {
+	case ChannelHealthStateDisabled:
+		return false, nil
+	case ChannelHealthStateCooldown, ChannelHealthStateOpenCircuit:
+		if health.CooldownUntil > now {
+			return false, nil
+		}
+		return true, nil
+	default:
+		return true, nil
+	}
+}
+
 func getOrCreateChannelHealth(channelID int, provider string, modelName string) (*ChannelHealth, error) {
 	if channelID <= 0 {
 		return nil, nil

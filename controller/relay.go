@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
+	providerpkg "github.com/QuantumNous/new-api/pkg/provider"
 	"github.com/QuantumNous/new-api/relay"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
@@ -197,8 +199,17 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 
 		addUsedChannel(c, channel.Id)
+		setRelayRetryHeaders(c, channel.Id, retryParam.GetRetry())
+		gatewayRateReservation, rateLimitErr := service.ReserveGatewayRateLimit(c, relayInfo, estimatedGatewayRateLimitTokens(tokens, meta))
+		if rateLimitErr != nil {
+			newAPIError = rateLimitErr
+			break
+		}
 		bodyStorage, bodyErr := common.GetBodyStorage(c)
 		if bodyErr != nil {
+			if gatewayRateReservation != nil {
+				_ = gatewayRateReservation.Release(c.Request.Context(), 0)
+			}
 			// Ensure consistent 413 for oversized bodies even when error occurs later (e.g., retry path)
 			if common.IsRequestBodyTooLargeError(bodyErr) || errors.Is(bodyErr, common.ErrRequestBodyTooLarge) {
 				newAPIError = types.NewErrorWithStatusCode(bodyErr, types.ErrorCodeReadRequestBodyFailed, http.StatusRequestEntityTooLarge, types.ErrOptionWithSkipRetry())
@@ -221,6 +232,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 
 		if newAPIError == nil {
+			recordRelayChannelHealthSuccess(c, channel.Id)
 			relayInfo.LastError = nil
 			return
 		}
@@ -244,6 +256,15 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		gopool.Go(func() {
 			perfmetrics.RecordRelaySample(relayInfo, false, 0)
 		})
+	}
+}
+
+func recordRelayChannelHealthSuccess(c *gin.Context, channelID int) {
+	if c == nil || channelID <= 0 {
+		return
+	}
+	if recordErr := service.RecordChannelHealthSuccessFromContext(c); recordErr != nil {
+		logger.LogError(c, fmt.Sprintf("record channel health success failed (channel #%d): %s", channelID, common.RedactSensitiveText(recordErr.Error())))
 	}
 }
 
@@ -300,6 +321,17 @@ func fastTokenCountMetaForPricing(request dto.Request) *types.TokenCountMeta {
 		// Best-effort: leave CombineText empty to avoid large allocations.
 	}
 	return meta
+}
+
+func estimatedGatewayRateLimitTokens(promptTokens int, meta *types.TokenCountMeta) int {
+	estimatedTokens := promptTokens
+	if meta != nil && meta.MaxTokens > 0 {
+		estimatedTokens += meta.MaxTokens
+	}
+	if estimatedTokens < 0 {
+		return 0
+	}
+	return estimatedTokens
 }
 
 func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service.RetryParam) (*model.Channel, *types.NewAPIError) {
@@ -363,7 +395,35 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 	if operation_setting.IsAlwaysSkipRetryCode(openaiErr.GetErrorCode()) {
 		return false
 	}
+	providerErr := providerpkg.ClassifyHTTPStatus(c.GetString("channel_name"), code, openaiErr.Error())
+	decision := providerpkg.NewRetryBudget(providerpkg.RetryBudgetOptions{
+		MaxRetries:    retryTimes,
+		StreamStarted: streamOutputStarted(c),
+	}).Decide(providerErr)
+	if !decision.Retry {
+		return false
+	}
 	return operation_setting.ShouldRetryByStatusCode(code)
+}
+
+func streamOutputStarted(c *gin.Context) bool {
+	if c == nil || c.Writer == nil {
+		return false
+	}
+	return common.GetContextKeyBool(c, constant.ContextKeyIsStream) && c.Writer.Written()
+}
+
+func setRelayRetryHeaders(c *gin.Context, channelID int, retryCount int) {
+	if c == nil {
+		return
+	}
+	c.Header("X-NewAPI-Retry-Count", strconv.Itoa(retryCount))
+	c.Header("X-NewAPI-Upstream-Channel", strconv.Itoa(channelID))
+	fallbackUsed := retryCount > 0
+	if !fallbackUsed && len(c.GetStringSlice("use_channel")) > 1 {
+		fallbackUsed = true
+	}
+	c.Header("X-NewAPI-Fallback-Used", strconv.FormatBool(fallbackUsed))
 }
 
 func processChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError) {

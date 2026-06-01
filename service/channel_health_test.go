@@ -3,11 +3,15 @@ package service
 import (
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/types"
+	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -75,4 +79,27 @@ func TestRecordChannelHealthSuccessRecordsProviderAndModel(t *testing.T) {
 	require.Equal(t, "deepseek", health.Provider)
 	require.Equal(t, "deepseek-chat", health.ModelName)
 	require.Equal(t, int64(1), health.SuccessCount)
+}
+
+func TestRecordChannelHealthSuccessFromContext(t *testing.T) {
+	setupServiceChannelHealthTestDB(t)
+	gin.SetMode(gin.TestMode)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	c.Set("channel_id", 204)
+	c.Set("channel_type", constant.ChannelTypeDeepSeek)
+	c.Set("original_model", "deepseek-chat")
+	common.SetContextKey(c, constant.ContextKeyRequestStartTime, time.Now().Add(-250*time.Millisecond))
+
+	require.NoError(t, RecordChannelHealthSuccessFromContext(c))
+
+	health, found, err := model.GetChannelHealth(204)
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Equal(t, "deepseek", health.Provider)
+	require.Equal(t, "deepseek-chat", health.ModelName)
+	require.Equal(t, int64(1), health.SuccessCount)
+	require.GreaterOrEqual(t, health.P95Latency, 200)
 }

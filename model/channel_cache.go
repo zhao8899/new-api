@@ -148,6 +148,10 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	for _, channelId := range channels {
 		if channel, ok := channelsIDM[channelId]; ok {
 			if channel.GetPriority() == targetPriority {
+				routable, err := IsChannelHealthRoutable(channel.Id)
+				if err != nil || !routable {
+					continue
+				}
 				sumWeight += channel.GetWeight()
 				targetChannels = append(targetChannels, channel)
 			}

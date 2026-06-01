@@ -107,3 +107,73 @@ func TestGetChannelHealthReturnsMissingWithoutError(t *testing.T) {
 	require.False(t, found)
 	require.Nil(t, health)
 }
+
+func TestIsChannelHealthRoutableUsesCircuitState(t *testing.T) {
+	setupChannelHealthTestDB(t)
+
+	ok, err := IsChannelHealthRoutable(501)
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	_, err = RecordChannelHealthFailure(501, "openai", "gpt-4.1", "RATE_LIMIT", "quota exceeded", 120)
+	require.NoError(t, err)
+	_, err = RecordChannelHealthFailure(501, "openai", "gpt-4.1", "RATE_LIMIT", "quota exceeded", 120)
+	require.NoError(t, err)
+	_, err = RecordChannelHealthFailure(501, "openai", "gpt-4.1", "RATE_LIMIT", "quota exceeded", 120)
+	require.NoError(t, err)
+
+	ok, err = IsChannelHealthRoutable(501)
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	for i := 0; i < 5; i++ {
+		_, err = RecordChannelHealthFailure(502, "anthropic", "claude-sonnet", "AUTH_ERROR", "invalid key", 120)
+		require.NoError(t, err)
+	}
+	ok, err = IsChannelHealthRoutable(502)
+	require.NoError(t, err)
+	require.False(t, ok)
+}
+
+func TestIsChannelHealthRoutableAllowsExpiredCooldownProbe(t *testing.T) {
+	setupChannelHealthTestDB(t)
+
+	health := &ChannelHealth{
+		ChannelID:     503,
+		Provider:      "gemini",
+		ModelName:     "gemini-2.5-pro",
+		HealthScore:   50,
+		CircuitState:  ChannelHealthStateCooldown,
+		CooldownUntil: common.GetTimestamp() - 1,
+		CreatedTime:   common.GetTimestamp(),
+		UpdatedTime:   common.GetTimestamp(),
+	}
+	require.NoError(t, DB.Select("*").Create(health).Error)
+
+	ok, err := IsChannelHealthRoutable(503)
+	require.NoError(t, err)
+	require.True(t, ok)
+}
+
+func TestGetChannelSkipsUnroutableChannelHealth(t *testing.T) {
+	setupChannelHealthTestDB(t)
+	common.MemoryCacheEnabled = false
+	t.Cleanup(func() {
+		common.MemoryCacheEnabled = false
+	})
+	require.NoError(t, DB.AutoMigrate(&Channel{}, &Ability{}, &ChannelHealth{}))
+
+	priority := int64(10)
+	weight := uint(100)
+	require.NoError(t, DB.Create(&Channel{Id: 601, Type: 1, Key: "sk-a", Status: common.ChannelStatusEnabled, Name: "cooldown", Priority: &priority, Weight: &weight}).Error)
+	require.NoError(t, DB.Create(&Ability{Group: "default", Model: "gpt-4.1", ChannelId: 601, Enabled: true, Priority: &priority, Weight: weight}).Error)
+
+	for i := 0; i < 3; i++ {
+		_, err := RecordChannelHealthFailure(601, "openai", "gpt-4.1", "RATE_LIMIT", "quota exceeded", 120)
+		require.NoError(t, err)
+	}
+
+	channel, err := GetChannel("default", "gpt-4.1", 0)
+	require.NoError(t, err)
+	require.Nil(t, channel)
+}

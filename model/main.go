@@ -255,6 +255,7 @@ func migrateDB() error {
 		&ProviderRegistry{},
 		&ChannelHealth{},
 		&RequestTrace{},
+		&AuditEvent{},
 		&Vendor{},
 		&PrefillGroup{},
 		&Setup{},
@@ -308,6 +309,7 @@ func migrateDBFast() error {
 		{&ProviderRegistry{}, "ProviderRegistry"},
 		{&ChannelHealth{}, "ChannelHealth"},
 		{&RequestTrace{}, "RequestTrace"},
+		{&AuditEvent{}, "AuditEvent"},
 		{&Vendor{}, "Vendor"},
 		{&PrefillGroup{}, "PrefillGroup"},
 		{&Setup{}, "Setup"},
@@ -359,7 +361,7 @@ func migrateDBFast() error {
 
 func migrateLOGDB() error {
 	var err error
-	if err = LOG_DB.AutoMigrate(&Log{}, &RequestTrace{}); err != nil {
+	if err = LOG_DB.AutoMigrate(&Log{}, &RequestTrace{}, &AuditEvent{}); err != nil {
 		return err
 	}
 	return nil
