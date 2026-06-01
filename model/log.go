@@ -202,6 +202,7 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 	if err != nil {
 		logger.LogError(c, "failed to record log: "+err.Error())
 	}
+	recordRequestTraceFromErrorLog(c, log)
 }
 
 type RecordConsumeLogParams struct {
@@ -265,10 +266,102 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	if err != nil {
 		logger.LogError(c, "failed to record log: "+err.Error())
 	}
+	recordRequestTraceFromConsumeLog(c, log)
 	if common.DataExportEnabled {
 		gopool.Go(func() {
 			LogQuotaData(userId, username, params.ModelName, params.Quota, common.GetTimestamp(), params.PromptTokens+params.CompletionTokens)
 		})
+	}
+}
+
+func recordRequestTraceFromErrorLog(c *gin.Context, log *Log) {
+	if c == nil || log == nil || log.RequestId == "" {
+		return
+	}
+	statusCode := 0
+	errorType := ""
+	if other, err := common.StrToMap(log.Other); err == nil && other != nil {
+		statusCode = intFromTraceOther(other["status_code"])
+		errorType = stringFromTraceOther(other["error_type"])
+	}
+	_, err := RecordRequestTrace(RequestTraceParams{
+		RequestID:            log.RequestId,
+		TraceID:              log.RequestId,
+		UserID:               log.UserId,
+		TokenID:              log.TokenId,
+		Group:                log.Group,
+		ExternalModel:        log.ModelName,
+		InternalModel:        log.ModelName,
+		Provider:             providerFromTraceContext(c),
+		ChannelID:            log.ChannelId,
+		UpstreamModel:        log.ModelName,
+		StatusCode:           statusCode,
+		UpstreamStatusCode:   statusCode,
+		LatencyMS:            log.UseTime * 1000,
+		ErrorType:            errorType,
+		ErrorMessageRedacted: log.Content,
+	})
+	if err != nil {
+		logger.LogError(c, "failed to record request trace: "+common.RedactSensitiveText(err.Error()))
+	}
+}
+
+func recordRequestTraceFromConsumeLog(c *gin.Context, log *Log) {
+	if c == nil || log == nil || log.RequestId == "" {
+		return
+	}
+	_, err := RecordRequestTrace(RequestTraceParams{
+		RequestID:          log.RequestId,
+		TraceID:            log.RequestId,
+		UserID:             log.UserId,
+		TokenID:            log.TokenId,
+		Group:              log.Group,
+		ExternalModel:      log.ModelName,
+		InternalModel:      log.ModelName,
+		Provider:           providerFromTraceContext(c),
+		ChannelID:          log.ChannelId,
+		UpstreamModel:      log.ModelName,
+		StatusCode:         200,
+		UpstreamStatusCode: 200,
+		LatencyMS:          log.UseTime * 1000,
+		PromptTokens:       log.PromptTokens,
+		CompletionTokens:   log.CompletionTokens,
+		ActualCost:         float64(log.Quota) / common.QuotaPerUnit,
+	})
+	if err != nil {
+		logger.LogError(c, "failed to record request trace: "+common.RedactSensitiveText(err.Error()))
+	}
+}
+
+func providerFromTraceContext(c *gin.Context) string {
+	channelType := c.GetInt("channel_type")
+	if channelType <= 0 {
+		return ""
+	}
+	return GetDefaultProviderMetadataByChannelType(channelType).Provider
+}
+
+func intFromTraceOther(value interface{}) int {
+	switch v := value.(type) {
+	case int:
+		return v
+	case int64:
+		return int(v)
+	case float64:
+		return int(v)
+	case float32:
+		return int(v)
+	default:
+		return 0
+	}
+}
+
+func stringFromTraceOther(value interface{}) string {
+	switch v := value.(type) {
+	case string:
+		return v
+	default:
+		return ""
 	}
 }
 
