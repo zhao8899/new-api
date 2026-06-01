@@ -19,11 +19,17 @@ import (
 )
 
 const (
-	gatewayRateLimitEnabledEnv = "NEW_API_RPM_TPM_LIMIT_ENABLED"
-	gatewayRateLimitRPMEnv     = "NEW_API_RPM_LIMIT"
-	gatewayRateLimitTPMEnv     = "NEW_API_TPM_LIMIT"
-	gatewayRateLimitWindowEnv  = "NEW_API_RPM_TPM_LIMIT_WINDOW_SECONDS"
-	gatewayRateLimitScopesEnv  = "NEW_API_RPM_TPM_LIMIT_SCOPES"
+	gatewayRateLimitEnabledEnv   = "NEW_API_RPM_TPM_LIMIT_ENABLED"
+	gatewayRateLimitRPMEnv       = "NEW_API_RPM_LIMIT"
+	gatewayRateLimitTPMEnv       = "NEW_API_TPM_LIMIT"
+	gatewayRateLimitWindowEnv    = "NEW_API_RPM_TPM_LIMIT_WINDOW_SECONDS"
+	gatewayRateLimitScopesEnv    = "NEW_API_RPM_TPM_LIMIT_SCOPES"
+	gatewayRateLimitModeEnv      = "NEW_API_RPM_TPM_LIMIT_MODE"
+	gatewayRateLimitStoreModeEnv = "NEW_API_RPM_TPM_LIMIT_STORE_FAILURE_MODE"
+
+	gatewayRateLimitModeEnforce   = "enforce"
+	gatewayRateLimitModeObserve   = "observe"
+	gatewayRateLimitStoreFailOpen = "fail_open"
 )
 
 var (
@@ -65,6 +71,10 @@ func ReserveGatewayRateLimit(c *gin.Context, relayInfo *relaycommon.RelayInfo, e
 
 	store := gatewayRateLimitStore()
 	if store == nil {
+		if gatewayRateLimitStoreFailureMode() == gatewayRateLimitStoreFailOpen {
+			c.Header("X-NewAPI-RateLimit-Store-Failure", gatewayRateLimitStoreFailOpen)
+			return nil, nil
+		}
 		return nil, types.NewErrorWithStatusCode(fmt.Errorf("gateway rate limit requires redis or an injected store"), types.ErrorCodeRateLimitExceeded, http.StatusInternalServerError, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 	}
 
@@ -94,9 +104,19 @@ func ReserveGatewayRateLimit(c *gin.Context, relayInfo *relaycommon.RelayInfo, e
 		}, limits)
 		if err != nil {
 			_ = reservation.Release(c.Request.Context(), 0)
+			if gatewayRateLimitStoreFailureMode() == gatewayRateLimitStoreFailOpen {
+				c.Header("X-NewAPI-RateLimit-Store-Failure", gatewayRateLimitStoreFailOpen)
+				return nil, nil
+			}
 			return nil, types.NewErrorWithStatusCode(fmt.Errorf("gateway rate limit reserve failed: %w", err), types.ErrorCodeRateLimitExceeded, http.StatusInternalServerError, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 		}
 		if !result.Allowed {
+			if gatewayRateLimitMode() == gatewayRateLimitModeObserve {
+				c.Header("X-NewAPI-RateLimit-Observed", "true")
+				_ = observeGatewayRateLimitExceed(c.Request.Context(), store, result, limits.Window)
+				reservation.results = append(reservation.results, result)
+				continue
+			}
 			_ = reservation.Release(c.Request.Context(), 0)
 			c.Header("Retry-After", strconv.Itoa(retryAfterSeconds(result.RetryAfter, limits.Window)))
 			return nil, types.NewErrorWithStatusCode(fmt.Errorf("gateway rate limit exceeded: %s", result.Reason), types.ErrorCodeRateLimitExceeded, http.StatusTooManyRequests, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
@@ -143,6 +163,22 @@ func gatewayRateLimitWindow() time.Duration {
 	return time.Duration(seconds) * time.Second
 }
 
+func gatewayRateLimitMode() string {
+	mode := strings.TrimSpace(strings.ToLower(common.GetEnvOrDefaultString(gatewayRateLimitModeEnv, gatewayRateLimitModeEnforce)))
+	if mode == gatewayRateLimitModeObserve {
+		return gatewayRateLimitModeObserve
+	}
+	return gatewayRateLimitModeEnforce
+}
+
+func gatewayRateLimitStoreFailureMode() string {
+	mode := strings.TrimSpace(strings.ToLower(common.GetEnvOrDefaultString(gatewayRateLimitStoreModeEnv, "")))
+	if mode == gatewayRateLimitStoreFailOpen {
+		return gatewayRateLimitStoreFailOpen
+	}
+	return "fail_closed"
+}
+
 func gatewayRateLimitScopes() []string {
 	raw := common.GetEnvOrDefaultString(gatewayRateLimitScopesEnv, strings.Join([]string{
 		ratelimit.ScopeProvider,
@@ -162,6 +198,23 @@ func gatewayRateLimitScopes() []string {
 		}
 	}
 	return scopes
+}
+
+func observeGatewayRateLimitExceed(ctx context.Context, store ratelimit.Store, result ratelimit.Result, window time.Duration) error {
+	if store == nil {
+		return nil
+	}
+	if result.RPMKey != "" {
+		if _, err := store.Add(ctx, result.RPMKey, 1, window); err != nil {
+			return err
+		}
+	}
+	if result.TPMKey != "" && result.EstimatedTokens > 0 {
+		if _, err := store.Add(ctx, result.TPMKey, int64(result.EstimatedTokens), window); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func gatewayRateLimitScopeKey(scope string, relayInfo *relaycommon.RelayInfo, c *gin.Context) string {

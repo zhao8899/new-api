@@ -87,6 +87,64 @@ func TestReserveGatewayRateLimitUsesMultipleScopes(t *testing.T) {
 	require.Equal(t, int64(1), store.value("rate_limit:openai:gpt-4.1:10:user:30:rpm"))
 }
 
+func TestReserveGatewayRateLimitObserveModeDoesNotReject(t *testing.T) {
+	t.Setenv("NEW_API_RPM_TPM_LIMIT_ENABLED", "true")
+	t.Setenv("NEW_API_RPM_LIMIT", "1")
+	t.Setenv("NEW_API_TPM_LIMIT", "1000")
+	t.Setenv("NEW_API_RPM_TPM_LIMIT_SCOPES", "token")
+	t.Setenv("NEW_API_RPM_TPM_LIMIT_MODE", "observe")
+	store := newGatewayRateLimitMemoryStore(time.Minute)
+	restore := SetGatewayRateLimitStoreForTest(store)
+	defer restore()
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	common.SetContextKey(c, constant.ContextKeyChannelId, 10)
+	common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeOpenAI)
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "gpt-4.1",
+		TokenId:         20,
+	}
+
+	first, apiErr := ReserveGatewayRateLimit(c, info, 100)
+	require.Nil(t, apiErr)
+	require.NotNil(t, first)
+	second, apiErr := ReserveGatewayRateLimit(c, info, 100)
+	require.Nil(t, apiErr)
+	require.NotNil(t, second)
+	require.Equal(t, "true", w.Header().Get("X-NewAPI-RateLimit-Observed"))
+	require.Equal(t, int64(2), store.value("rate_limit:openai:gpt-4.1:10:token:20:rpm"))
+}
+
+func TestReserveGatewayRateLimitStoreFailOpen(t *testing.T) {
+	t.Setenv("NEW_API_RPM_TPM_LIMIT_ENABLED", "true")
+	t.Setenv("NEW_API_RPM_LIMIT", "1")
+	t.Setenv("NEW_API_RPM_TPM_LIMIT_STORE_FAILURE_MODE", "fail_open")
+	restore := SetGatewayRateLimitStoreForTest(nil)
+	defer restore()
+	originalRedisEnabled := common.RedisEnabled
+	originalRedis := common.RDB
+	common.RedisEnabled = false
+	common.RDB = nil
+	t.Cleanup(func() {
+		common.RedisEnabled = originalRedisEnabled
+		common.RDB = originalRedis
+	})
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	reservation, apiErr := ReserveGatewayRateLimit(c, &relaycommon.RelayInfo{OriginModelName: "gpt-4.1"}, 100)
+
+	require.Nil(t, reservation)
+	require.Nil(t, apiErr)
+	require.Equal(t, "fail_open", w.Header().Get("X-NewAPI-RateLimit-Store-Failure"))
+}
+
 type gatewayRateLimitMemoryStore struct {
 	mu     sync.Mutex
 	values map[string]int64
