@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -58,6 +59,54 @@ func GetAuditEvents(c *gin.Context) {
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(events)
 	common.ApiSuccess(c, pageInfo)
+}
+
+func GetRequestTraces(c *gin.Context) {
+	pageInfo := common.GetPageQuery(c)
+	userID, _ := strconv.Atoi(c.Query("user_id"))
+	tokenID, _ := strconv.Atoi(c.Query("token_id"))
+	channelID, _ := strconv.Atoi(c.Query("channel_id"))
+	statusCode, _ := strconv.Atoi(c.Query("status_code"))
+	query := model.RequestTraceQuery{
+		RequestID:     c.Query("request_id"),
+		TraceID:       c.Query("trace_id"),
+		UserID:        userID,
+		TokenID:       tokenID,
+		Group:         c.Query("group"),
+		ExternalModel: c.Query("model"),
+		Provider:      c.Query("provider"),
+		ChannelID:     channelID,
+		ErrorType:     c.Query("error_type"),
+		StatusCode:    statusCode,
+		StartIdx:      pageInfo.GetStartIdx(),
+		Limit:         pageInfo.GetPageSize(),
+	}
+	traces, err := model.ListRequestTraces(query)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	total, err := model.CountRequestTraces(query)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(traces)
+	common.ApiSuccess(c, pageInfo)
+}
+
+func GetRequestTrace(c *gin.Context) {
+	trace, found, err := model.GetRequestTraceByRequestID(c.Param("request_id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if !found {
+		common.ApiError(c, errors.New("request trace not found"))
+		return
+	}
+	common.ApiSuccess(c, trace)
 }
 
 func GetUserLogs(c *gin.Context) {
