@@ -298,6 +298,8 @@ func recordRequestTraceFromErrorLog(c *gin.Context, log *Log) {
 		StatusCode:           statusCode,
 		UpstreamStatusCode:   statusCode,
 		LatencyMS:            log.UseTime * 1000,
+		RetryCount:           retryCountFromTraceContext(c),
+		FallbackUsed:         fallbackUsedFromTraceContext(c),
 		ErrorType:            errorType,
 		ErrorMessageRedacted: log.Content,
 	})
@@ -324,6 +326,8 @@ func recordRequestTraceFromConsumeLog(c *gin.Context, log *Log) {
 		StatusCode:         200,
 		UpstreamStatusCode: 200,
 		LatencyMS:          log.UseTime * 1000,
+		RetryCount:         retryCountFromTraceContext(c),
+		FallbackUsed:       fallbackUsedFromTraceContext(c),
 		PromptTokens:       log.PromptTokens,
 		CompletionTokens:   log.CompletionTokens,
 		ActualCost:         float64(log.Quota) / common.QuotaPerUnit,
@@ -339,6 +343,21 @@ func providerFromTraceContext(c *gin.Context) string {
 		return ""
 	}
 	return GetDefaultProviderMetadataByChannelType(channelType).Provider
+}
+
+func retryCountFromTraceContext(c *gin.Context) int {
+	if c == nil {
+		return 0
+	}
+	usedChannels := c.GetStringSlice("use_channel")
+	if len(usedChannels) <= 1 {
+		return 0
+	}
+	return len(usedChannels) - 1
+}
+
+func fallbackUsedFromTraceContext(c *gin.Context) bool {
+	return retryCountFromTraceContext(c) > 0
 }
 
 func intFromTraceOther(value interface{}) int {

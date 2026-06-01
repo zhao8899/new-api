@@ -126,12 +126,57 @@ func TestRequestTraceMigrationIncludesCoreColumns(t *testing.T) {
 	require.True(t, LOG_DB.Migrator().HasColumn(&RequestTrace{}, "error_type"))
 }
 
+func TestListRequestTracesFiltersAndCounts(t *testing.T) {
+	setupRequestTraceTestDB(t)
+
+	_, err := RecordRequestTrace(RequestTraceParams{
+		RequestID:     "req-trace-1",
+		UserID:        10,
+		TokenID:       20,
+		ExternalModel: "gpt-4.1",
+		Provider:      "openai",
+		ChannelID:     30,
+		StatusCode:    200,
+	})
+	require.NoError(t, err)
+	_, err = RecordRequestTrace(RequestTraceParams{
+		RequestID:            "req-trace-2",
+		UserID:               11,
+		TokenID:              21,
+		ExternalModel:        "claude-sonnet",
+		Provider:             "anthropic",
+		ChannelID:            31,
+		StatusCode:           502,
+		ErrorType:            "SERVER_ERROR",
+		ErrorMessageRedacted: "failed with key sk-abcdef1234567890",
+	})
+	require.NoError(t, err)
+
+	query := RequestTraceQuery{
+		Provider:  "anthropic",
+		ErrorType: "server_error",
+		StartIdx:  0,
+		Limit:     10,
+	}
+	total, err := CountRequestTraces(query)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), total)
+
+	traces, err := ListRequestTraces(query)
+	require.NoError(t, err)
+	require.Len(t, traces, 1)
+	require.Equal(t, "req-trace-2", traces[0].RequestID)
+	require.Equal(t, "SERVER_ERROR", traces[0].ErrorType)
+	require.NotContains(t, traces[0].ErrorMessageRedacted, "sk-abcdef1234567890")
+}
+
 func TestRecordConsumeLogCreatesRequestTrace(t *testing.T) {
 	setupRequestTraceLogTestDB(t)
 
 	c := newRequestTraceGinContext("req-consume")
 	c.Set("username", "alice")
 	c.Set("channel_type", constant.ChannelTypeOpenAI)
+	c.Set("use_channel", []string{"8", "9"})
 	common.LogConsumeEnabled = true
 
 	RecordConsumeLog(c, 7, RecordConsumeLogParams{
@@ -155,6 +200,8 @@ func TestRecordConsumeLogCreatesRequestTrace(t *testing.T) {
 	require.Equal(t, 30, trace.TotalTokens)
 	require.Equal(t, 2000, trace.LatencyMS)
 	require.Equal(t, 1.0, trace.ActualCost)
+	require.Equal(t, 1, trace.RetryCount)
+	require.True(t, trace.FallbackUsed)
 }
 
 func TestRecordErrorLogCreatesRedactedRequestTrace(t *testing.T) {

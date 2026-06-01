@@ -61,6 +61,21 @@ type RequestTraceParams struct {
 	ErrorMessageRedacted string
 }
 
+type RequestTraceQuery struct {
+	RequestID     string
+	TraceID       string
+	UserID        int
+	TokenID       int
+	Group         string
+	ExternalModel string
+	Provider      string
+	ChannelID     int
+	ErrorType     string
+	StatusCode    int
+	StartIdx      int
+	Limit         int
+}
+
 func (t *RequestTrace) BeforeSave(tx *gorm.DB) error {
 	t.RequestID = strings.TrimSpace(t.RequestID)
 	t.TraceID = strings.TrimSpace(t.TraceID)
@@ -125,6 +140,58 @@ func GetRequestTraceByRequestID(requestID string) (*RequestTrace, bool, error) {
 		return nil, false, err
 	}
 	return &trace, true, nil
+}
+
+func ListRequestTraces(query RequestTraceQuery) ([]*RequestTrace, error) {
+	tx := buildRequestTraceQuery(query)
+	limit := query.Limit
+	if limit <= 0 {
+		limit = 10
+	}
+	var traces []*RequestTrace
+	err := tx.Order("created_at desc").Limit(limit).Offset(query.StartIdx).Find(&traces).Error
+	return traces, err
+}
+
+func CountRequestTraces(query RequestTraceQuery) (int64, error) {
+	var total int64
+	err := buildRequestTraceQuery(query).Count(&total).Error
+	return total, err
+}
+
+func buildRequestTraceQuery(query RequestTraceQuery) *gorm.DB {
+	tx := LOG_DB.Model(&RequestTrace{})
+	if requestID := strings.TrimSpace(query.RequestID); requestID != "" {
+		tx = tx.Where("request_id = ?", requestID)
+	}
+	if traceID := strings.TrimSpace(query.TraceID); traceID != "" {
+		tx = tx.Where("trace_id = ?", traceID)
+	}
+	if query.UserID > 0 {
+		tx = tx.Where("user_id = ?", query.UserID)
+	}
+	if query.TokenID > 0 {
+		tx = tx.Where("token_id = ?", query.TokenID)
+	}
+	if group := strings.TrimSpace(query.Group); group != "" {
+		tx = tx.Where(commonGroupCol+" = ?", group)
+	}
+	if modelName := strings.TrimSpace(query.ExternalModel); modelName != "" {
+		tx = tx.Where("external_model = ?", modelName)
+	}
+	if provider := strings.TrimSpace(strings.ToLower(query.Provider)); provider != "" {
+		tx = tx.Where("provider = ?", provider)
+	}
+	if query.ChannelID > 0 {
+		tx = tx.Where("channel_id = ?", query.ChannelID)
+	}
+	if errorType := strings.TrimSpace(strings.ToUpper(query.ErrorType)); errorType != "" {
+		tx = tx.Where("error_type = ?", errorType)
+	}
+	if query.StatusCode > 0 {
+		tx = tx.Where("status_code = ?", query.StatusCode)
+	}
+	return tx
 }
 
 func applyRequestTraceParams(trace *RequestTrace, params RequestTraceParams) {

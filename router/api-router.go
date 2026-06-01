@@ -305,6 +305,8 @@ func SetApiRouter(router *gin.Engine) {
 		logRoute := apiRouter.Group("/log")
 		logRoute.GET("/", middleware.AdminAuth(), controller.GetAllLogs)
 		logRoute.GET("/audit", middleware.AdminAuth(), controller.GetAuditEvents)
+		logRoute.GET("/request_trace", middleware.AdminAuth(), controller.GetRequestTraces)
+		logRoute.GET("/request_trace/:request_id", middleware.AdminAuth(), controller.GetRequestTrace)
 		logRoute.DELETE("/", middleware.AdminAuth(), middleware.SecureVerificationRequired(), middleware.AuditAction("log.delete_history", "log"), controller.DeleteHistoryLogs)
 		logRoute.GET("/stat", middleware.AdminAuth(), controller.GetLogsStat)
 		logRoute.GET("/self/stat", middleware.UserAuth(), controller.GetLogsSelfStat)
