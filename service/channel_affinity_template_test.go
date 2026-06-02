@@ -298,9 +298,10 @@ func TestChannelAffinityHitCodexTemplatePassHeadersEffective(t *testing.T) {
 	require.Equal(t, "legacy-static", info.RuntimeHeadersOverride["x-static"])
 	require.Equal(t, "Codex CLI", info.RuntimeHeadersOverride["originator"])
 	require.Equal(t, "sess-123", info.RuntimeHeadersOverride["session_id"])
-	require.Equal(t, "codex-cli-test", info.RuntimeHeadersOverride["user-agent"])
+	_, exists := info.RuntimeHeadersOverride["user-agent"]
+	require.False(t, exists)
 
-	_, exists := info.RuntimeHeadersOverride["x-codex-beta-features"]
+	_, exists = info.RuntimeHeadersOverride["x-codex-beta-features"]
 	require.False(t, exists)
 	_, exists = info.RuntimeHeadersOverride["x-codex-turn-metadata"]
 	require.False(t, exists)

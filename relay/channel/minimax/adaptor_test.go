@@ -13,6 +13,7 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetRequestURLForImageGeneration(t *testing.T) {
@@ -118,6 +119,37 @@ func TestDoResponseForImageGeneration(t *testing.T) {
 	if strings.Contains(body, `"image_urls"`) {
 		t.Fatalf("response body = %s, should not expose raw MiniMax image_urls payload", body)
 	}
+}
+
+func TestConvertGeminiRequestBuildsOpenAIRequest(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+
+	req := &dto.GeminiChatRequest{
+		Contents: []dto.GeminiChatContent{
+			{
+				Role: "user",
+				Parts: []dto.GeminiPart{
+					{Text: "hello minimax"},
+				},
+			},
+		},
+	}
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "MiniMax-Text-01",
+		},
+	}
+
+	got, err := (&Adaptor{}).ConvertGeminiRequest(c, info, req)
+	require.NoError(t, err)
+
+	mmReq, ok := got.(*dto.GeneralOpenAIRequest)
+	require.True(t, ok)
+	require.Equal(t, "MiniMax-Text-01", mmReq.Model)
+	require.Len(t, mmReq.Messages, 1)
+	require.Equal(t, "hello minimax", mmReq.Messages[0].Content)
 }
 
 type nopReadCloser struct {

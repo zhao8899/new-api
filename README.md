@@ -387,9 +387,14 @@ docker run --name new-api -d --restart always \
 2. Search for **New-API** in the application store
 3. One-click installation
 
-📖 [Tutorial with images](./docs/BT.md)
+📖 [Tutorial with images](./docs/installation/BT.md)
 
 </details>
+
+> [!TIP]
+> **Windows 11 recommendation:** The recommended Windows deployment path for this project is `Windows 11 + Docker Desktop + WSL2 + Linux containers`.
+> This is more stable than native Windows source deployment because the project is delivered Docker-first, and native source deployment requires additional frontend build steps before backend compilation.
+> For a residential-hosted remote access model with Cloudflare Tunnel + Access, see [Seattle Residential Deployment Manual](./docs/deployment/SEATTLE_RESIDENTIAL_DEPLOYMENT_MANUAL.md).
 
 ### ⚠️ Multi-machine Deployment Considerations
 

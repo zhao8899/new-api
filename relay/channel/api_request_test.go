@@ -138,6 +138,112 @@ func TestProcessHeaderOverride_PassthroughSkipsAcceptEncoding(t *testing.T) {
 	require.False(t, hasAcceptEncoding)
 }
 
+func TestProcessHeaderOverride_PassthroughSkipsSensitiveClientHeaders(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	ctx.Request.Header.Set("X-Trace-Id", "trace-123")
+	ctx.Request.Header.Set("X-Forwarded-For", "198.51.100.10")
+	ctx.Request.Header.Set("CF-Connecting-IP", "198.51.100.11")
+
+	info := &relaycommon.RelayInfo{
+		IsChannelTest: false,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			HeadersOverride: map[string]any{
+				"*": "",
+			},
+		},
+	}
+
+	headers, err := processHeaderOverride(info, ctx)
+	require.NoError(t, err)
+	require.Equal(t, "trace-123", headers["x-trace-id"])
+	require.NotContains(t, headers, "x-forwarded-for")
+	require.NotContains(t, headers, "cf-connecting-ip")
+}
+
+func TestProcessHeaderOverride_PassthroughSkipsClientEnvironmentHeaders(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	ctx.Request.Header.Set("User-Agent", "Mozilla/5.0")
+	ctx.Request.Header.Set("Origin", "https://example.com")
+	ctx.Request.Header.Set("Referer", "https://example.com/app")
+	ctx.Request.Header.Set("Sec-Fetch-Site", "same-site")
+	ctx.Request.Header.Set("Sec-CH-UA", "\"Chromium\";v=\"130\"")
+	ctx.Request.Header.Set("X-Trace-Id", "trace-123")
+
+	info := &relaycommon.RelayInfo{
+		IsChannelTest: false,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			HeadersOverride: map[string]any{
+				"*": "",
+			},
+		},
+	}
+
+	headers, err := processHeaderOverride(info, ctx)
+	require.NoError(t, err)
+	require.Equal(t, "trace-123", headers["x-trace-id"])
+	require.NotContains(t, headers, "user-agent")
+	require.NotContains(t, headers, "origin")
+	require.NotContains(t, headers, "referer")
+	require.NotContains(t, headers, "sec-fetch-site")
+	require.NotContains(t, headers, "sec-ch-ua")
+}
+
+func TestProcessHeaderOverride_BlocksSensitiveClientHeaderPlaceholder(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	ctx.Request.Header.Set("X-Forwarded-For", "198.51.100.10")
+
+	info := &relaycommon.RelayInfo{
+		IsChannelTest: false,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			HeadersOverride: map[string]any{
+				"X-Upstream-Client-IP": "{client_header:X-Forwarded-For}",
+			},
+		},
+	}
+
+	headers, err := processHeaderOverride(info, ctx)
+	require.NoError(t, err)
+	require.NotContains(t, headers, "x-upstream-client-ip")
+}
+
+func TestProcessHeaderOverride_BlocksClientEnvironmentHeaderPlaceholder(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	ctx.Request.Header.Set("User-Agent", "Mozilla/5.0")
+
+	info := &relaycommon.RelayInfo{
+		IsChannelTest: false,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			HeadersOverride: map[string]any{
+				"X-Upstream-UA": "{client_header:User-Agent}",
+			},
+		},
+	}
+
+	headers, err := processHeaderOverride(info, ctx)
+	require.NoError(t, err)
+	require.NotContains(t, headers, "x-upstream-ua")
+}
+
 func TestProcessHeaderOverride_PassHeadersTemplateSetsRuntimeHeaders(t *testing.T) {
 	t.Parallel()
 
@@ -190,4 +296,27 @@ func TestProcessHeaderOverride_PassHeadersTemplateSetsRuntimeHeaders(t *testing.
 	require.Equal(t, "Codex CLI", upstreamReq.Header.Get("Originator"))
 	require.Equal(t, "sess-123", upstreamReq.Header.Get("Session_id"))
 	require.Empty(t, upstreamReq.Header.Get("X-Codex-Beta-Features"))
+}
+
+func TestApplyHeaderOverrideToRequest_BlocksSensitiveRuntimeHeaders(t *testing.T) {
+	t.Parallel()
+
+	upstreamReq := httptest.NewRequest(http.MethodPost, "https://example.com/v1/responses", nil)
+	applyHeaderOverrideToRequest(upstreamReq, map[string]string{
+		"X-Forwarded-For":  "198.51.100.10",
+		"CF-Connecting-IP": "198.51.100.11",
+		"CF-Access-User":   "user@example.com",
+		"User-Agent":       "Mozilla/5.0",
+		"Origin":           "https://example.com",
+		"Sec-Fetch-Site":   "same-site",
+		"X-Trace-Id":       "trace-123",
+	})
+
+	require.Empty(t, upstreamReq.Header.Get("X-Forwarded-For"))
+	require.Empty(t, upstreamReq.Header.Get("CF-Connecting-IP"))
+	require.Empty(t, upstreamReq.Header.Get("CF-Access-User"))
+	require.Empty(t, upstreamReq.Header.Get("User-Agent"))
+	require.Empty(t, upstreamReq.Header.Get("Origin"))
+	require.Empty(t, upstreamReq.Header.Get("Sec-Fetch-Site"))
+	require.Equal(t, "trace-123", upstreamReq.Header.Get("X-Trace-Id"))
 }

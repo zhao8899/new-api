@@ -1,6 +1,14 @@
 ---
 name: classic-to-default-sync
-description: Inspect a given commit's web/classic changes and sync all features/fixes to web/default. Use when the user provides a commit ID and wants to audit whether web/default already has the same features as web/classic, port missing features, improve suboptimal implementations, fix bugs, and remove redundant code. Trigger phrases include: "/classic-to-default-sync <hash>", "classic-to-default-sync <hash>", "sync classic to default", "port from classic", "compare classic commit", "classic 和 default 对比", "把这次 classic 的修改同步到 default", "查看这次提交 classic 中的修改并同步", or any request supplying a commit hash together with classic/default comparison intent.
+description: >
+  Inspect a given commit's web/classic changes and sync all features/fixes to
+  web/default. Use when the user provides a commit ID and wants to audit whether
+  web/default already has the same features as web/classic, port missing
+  features, improve suboptimal implementations, fix bugs, and remove redundant
+  code. Trigger phrases include "/classic-to-default-sync <hash>",
+  "classic-to-default-sync <hash>", "sync classic to default", "port from
+  classic", "compare classic commit", or any request supplying a commit hash
+  together with classic/default comparison intent.
 ---
 
 # Classic-to-Default Sync
@@ -13,15 +21,15 @@ The user must supply a `<commit-id>`.
 
 ## Workflow
 
-### Step 1 — Extract classic diff
+### Step 1 - Extract classic diff
 
 ```bash
 git show <commit-id> -- web/classic
 ```
 
-Read every changed file in `web/classic`. Identify the **logical changes** (new features, UI/UX improvements, bug fixes, config tweaks, removed dead code, etc.) — not just line diffs.
+Read every changed file in `web/classic`. Identify the **logical changes** (new features, UI/UX improvements, bug fixes, config tweaks, removed dead code, etc.), not just line diffs.
 
-### Step 2 — Map to default counterparts
+### Step 2 - Map to default counterparts
 
 For each logical change found in Step 1, locate the equivalent file(s) in `web/default/src/`. Use Glob/Grep/SemanticSearch as needed. Consider that:
 
@@ -29,19 +37,19 @@ For each logical change found in Step 1, locate the equivalent file(s) in `web/d
 - `web/default` uses **React 19 + Rsbuild + Base UI + Tailwind CSS**
 - Component names, file paths, and API shapes may differ; match by **functionality**, not filename.
 
-### Step 3 — Triage each change
+### Step 3 - Triage each change
 
 Classify every logical change as one of:
 
 | Status | Meaning |
 |--------|---------|
-| ✅ Already present & optimal | No action needed |
-| ⚠️ Present but suboptimal | Improve: logic, layout, style, or code quality |
-| ❌ Missing | Implement from scratch in default's stack |
+| Already present and optimal | No action needed |
+| Present but suboptimal | Improve logic, layout, style, or code quality |
+| Missing | Implement from scratch in default's stack |
 
-### Step 4 — Implement
+### Step 4 - Implement
 
-For each **⚠️** or **❌** item:
+For each **Present but suboptimal** or **Missing** item:
 
 1. **Read the target file(s) in `web/default`** before editing (required by project conventions).
 2. Implement using `web/default` conventions:
@@ -49,12 +57,12 @@ For each **⚠️** or **❌** item:
    - Base UI primitives where applicable
    - Tailwind CSS for styling (no inline styles or Semi Design imports)
    - `useTranslation()` + `t('English key')` for all user-visible strings
-   - TypeScript — explicit types, no `any`
+   - TypeScript explicit types, no `any`
    - No dead code, no redundant comments
 3. Follow **Rule 6** (pointer types for optional relay DTOs) if touching relay-related TS types.
 4. After editing, run `ReadLints` on changed files and fix any introduced lint errors.
 
-### Step 5 — i18n
+### Step 5 - i18n
 
 If any new user-visible strings were added, run the i18n sync:
 
@@ -64,20 +72,20 @@ cd web/default && bun run i18n:sync
 
 Then add missing translations for all supported locales (en, zh, fr, ja, ru, vi) following the **i18n-translate** skill.
 
-### Step 6 — Report
+### Step 6 - Report
 
 Summarise the work in a concise table:
 
 | # | Change (from classic commit) | Status | Action taken |
 |---|------------------------------|--------|--------------|
-| 1 | … | ✅ / ⚠️ / ❌ | None / Improved / Implemented |
+| 1 | ... | Already present / Present but suboptimal / Missing | None / Improved / Implemented |
 
-If every item is ✅ with no action needed, simply reply: **"已完成 — web/default 已具备此次提交的所有功能，且实现质量良好，无需修改。"**
+If every item is already present with no action needed, reply that `web/default` already contains all features from the commit and no changes are required.
 
 ## Quality bar
 
 - No unused imports, variables, or components
 - No commented-out code left behind
 - Consistent naming with surrounding `web/default` code
-- All interactive elements accessible (keyboard nav, ARIA labels where Radix doesn't provide them automatically)
+- All interactive elements accessible (keyboard nav, ARIA labels where Radix does not provide them automatically)
 - No regressions: existing behaviour in `web/default` must not break
