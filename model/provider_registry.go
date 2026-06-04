@@ -31,6 +31,15 @@ type ProviderRegistry struct {
 	UpdatedTime  int64  `json:"updated_time" gorm:"bigint"`
 }
 
+type ProviderRegistryQuery struct {
+	Provider     string
+	Protocol     string
+	HealthStatus string
+	Enabled      *bool
+	StartIdx     int
+	Limit        int
+}
+
 type ProviderMetadata struct {
 	ChannelType int
 	APIType     int
@@ -84,6 +93,59 @@ func GetProviderRegistryByProvider(provider string) (*ProviderRegistry, bool, er
 		return nil, false, err
 	}
 	return &registry, true, nil
+}
+
+func GetProviderRegistryByID(id int) (*ProviderRegistry, bool, error) {
+	if id <= 0 {
+		return nil, false, nil
+	}
+	var registry ProviderRegistry
+	err := DB.First(&registry, id).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	return &registry, true, nil
+}
+
+func ListProviderRegistries(query ProviderRegistryQuery) ([]*ProviderRegistry, error) {
+	tx := buildProviderRegistryQuery(query)
+	limit := query.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+	var registries []*ProviderRegistry
+	err := tx.Order("provider asc").Limit(limit).Offset(query.StartIdx).Find(&registries).Error
+	return registries, err
+}
+
+func CountProviderRegistries(query ProviderRegistryQuery) (int64, error) {
+	var total int64
+	err := buildProviderRegistryQuery(query).Count(&total).Error
+	return total, err
+}
+
+func DeleteProviderRegistry(id int) error {
+	return DB.Delete(&ProviderRegistry{}, id).Error
+}
+
+func buildProviderRegistryQuery(query ProviderRegistryQuery) *gorm.DB {
+	tx := DB.Model(&ProviderRegistry{})
+	if provider := strings.TrimSpace(strings.ToLower(query.Provider)); provider != "" {
+		tx = tx.Where("provider LIKE ?", "%"+provider+"%")
+	}
+	if protocol := strings.TrimSpace(strings.ToLower(query.Protocol)); protocol != "" {
+		tx = tx.Where("protocol = ?", protocol)
+	}
+	if healthStatus := strings.TrimSpace(strings.ToLower(query.HealthStatus)); healthStatus != "" {
+		tx = tx.Where("health_status = ?", healthStatus)
+	}
+	if query.Enabled != nil {
+		tx = tx.Where("enabled = ?", *query.Enabled)
+	}
+	return tx
 }
 
 func GetDefaultProviderMetadataByChannelType(channelType int) ProviderMetadata {

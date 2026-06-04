@@ -34,6 +34,15 @@ type ModelRegistry struct {
 	UpdatedTime     int64  `json:"updated_time" gorm:"bigint"`
 }
 
+type ModelRegistryQuery struct {
+	ExternalModel string
+	Provider      string
+	Protocol      string
+	Enabled       *bool
+	StartIdx      int
+	Limit         int
+}
+
 func (m *ModelRegistry) BeforeSave(tx *gorm.DB) error {
 	m.ExternalModel = strings.TrimSpace(m.ExternalModel)
 	m.Provider = strings.TrimSpace(strings.ToLower(m.Provider))
@@ -76,6 +85,59 @@ func GetModelRegistryByExternalModel(externalModel string) (*ModelRegistry, bool
 		return nil, false, err
 	}
 	return &registry, true, nil
+}
+
+func GetModelRegistryByID(id int) (*ModelRegistry, bool, error) {
+	if id <= 0 {
+		return nil, false, nil
+	}
+	var registry ModelRegistry
+	err := DB.First(&registry, id).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	return &registry, true, nil
+}
+
+func ListModelRegistries(query ModelRegistryQuery) ([]*ModelRegistry, error) {
+	tx := buildModelRegistryQuery(query)
+	limit := query.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+	var registries []*ModelRegistry
+	err := tx.Order("priority desc, id desc").Limit(limit).Offset(query.StartIdx).Find(&registries).Error
+	return registries, err
+}
+
+func CountModelRegistries(query ModelRegistryQuery) (int64, error) {
+	var total int64
+	err := buildModelRegistryQuery(query).Count(&total).Error
+	return total, err
+}
+
+func DeleteModelRegistry(id int) error {
+	return DB.Delete(&ModelRegistry{}, id).Error
+}
+
+func buildModelRegistryQuery(query ModelRegistryQuery) *gorm.DB {
+	tx := DB.Model(&ModelRegistry{})
+	if externalModel := strings.TrimSpace(query.ExternalModel); externalModel != "" {
+		tx = tx.Where("external_model LIKE ?", "%"+externalModel+"%")
+	}
+	if provider := strings.TrimSpace(strings.ToLower(query.Provider)); provider != "" {
+		tx = tx.Where("provider = ?", provider)
+	}
+	if protocol := strings.TrimSpace(strings.ToLower(query.Protocol)); protocol != "" {
+		tx = tx.Where("protocol = ?", protocol)
+	}
+	if query.Enabled != nil {
+		tx = tx.Where("enabled = ?", *query.Enabled)
+	}
+	return tx
 }
 
 func normalizeCSVLikeString(value string) string {

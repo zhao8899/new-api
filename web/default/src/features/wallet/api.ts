@@ -38,6 +38,8 @@ import type {
   WaffoPaymentResponse,
   WaffoPancakePaymentRequest,
   WaffoPancakePaymentResponse,
+  TopupReconciliationQuery,
+  TopupReconciliationResponse,
 } from './types'
 
 // ============================================================================
@@ -232,4 +234,36 @@ export async function completeOrder(
 ): Promise<ApiResponse> {
   const res = await api.post('/api/user/topup/complete', request)
   return res.data
+}
+
+function buildTopupReconciliationParams(query: TopupReconciliationQuery) {
+  const params = new URLSearchParams({
+    start_time: query.start_time.toString(),
+    end_time: query.end_time.toString(),
+  })
+  if (query.payment_provider) {
+    params.append('payment_provider', query.payment_provider)
+  }
+  if (query.payment_method) {
+    params.append('payment_method', query.payment_method)
+  }
+  if (query.status) {
+    params.append('status', query.status)
+  }
+  return params
+}
+
+export async function getTopupReconciliation(
+  query: TopupReconciliationQuery
+): Promise<ApiResponse<TopupReconciliationResponse>> {
+  const params = buildTopupReconciliationParams(query)
+  const res = await api.get(`/api/user/topup/reconciliation?${params}`)
+  return res.data
+}
+
+export function getTopupReconciliationExportUrl(
+  query: TopupReconciliationQuery
+) {
+  const params = buildTopupReconciliationParams(query)
+  return `/api/user/topup/reconciliation/export?${params}`
 }

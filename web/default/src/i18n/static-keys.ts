@@ -198,6 +198,9 @@ export const STATIC_I18N_KEYS = [
   'Not set yet',
 
   // Models section-registry nav (dynamic titleKey)
+  'Registry',
+  'Model Registry',
+  'Provider Registry',
   'Grok',
 
   // Channel Affinity section

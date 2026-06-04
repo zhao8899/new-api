@@ -287,3 +287,29 @@ export interface BillingHistoryResponse {
 export interface CompleteOrderRequest {
   trade_no: string
 }
+
+export interface TopupReconciliationRow {
+  payment_provider: string
+  payment_method: string
+  status: TopupStatus | string
+  order_count: number
+  total_amount: number
+  total_money: number
+  first_create_time: number
+  last_create_time: number
+  last_complete_time: number
+}
+
+export interface TopupReconciliationResponse {
+  start_time: number
+  end_time: number
+  items: TopupReconciliationRow[]
+}
+
+export interface TopupReconciliationQuery {
+  start_time: number
+  end_time: number
+  payment_provider?: string
+  payment_method?: string
+  status?: string
+}

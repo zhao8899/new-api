@@ -16,6 +16,12 @@ const (
 	ChannelHealthStateOpenCircuit = "open_circuit"
 	ChannelHealthStateDisabled    = "disabled"
 
+	ChannelHealthCircuitModeOption = "ChannelCircuitMode"
+
+	channelHealthCircuitModeEnv     = "NEW_API_CHANNEL_CIRCUIT_MODE"
+	channelHealthCircuitModeObserve = "observe"
+	channelHealthCircuitModeEnforce = "enforce"
+
 	channelHealthErrorAuth      = "AUTH_ERROR"
 	channelHealthErrorRateLimit = "RATE_LIMIT"
 	channelHealthErrorServer    = "SERVER_ERROR"
@@ -44,6 +50,16 @@ type ChannelHealth struct {
 	UpdatedTime      int64  `json:"updated_time" gorm:"bigint"`
 }
 
+type ChannelHealthQuery struct {
+	ChannelID     int
+	Provider      string
+	ModelName     string
+	CircuitState  string
+	LastErrorType string
+	StartIdx      int
+	Limit         int
+}
+
 func (h *ChannelHealth) BeforeSave(tx *gorm.DB) error {
 	h.Provider = strings.TrimSpace(strings.ToLower(h.Provider))
 	h.ModelName = strings.TrimSpace(h.ModelName)
@@ -59,6 +75,30 @@ func (h *ChannelHealth) BeforeSave(tx *gorm.DB) error {
 		h.HealthScore = 100
 	}
 	return nil
+}
+
+func NormalizeChannelHealthCircuitMode(mode string) string {
+	mode = strings.TrimSpace(strings.ToLower(mode))
+	if mode == channelHealthCircuitModeEnforce {
+		return channelHealthCircuitModeEnforce
+	}
+	return channelHealthCircuitModeObserve
+}
+
+func IsValidChannelHealthCircuitMode(mode string) bool {
+	mode = strings.TrimSpace(strings.ToLower(mode))
+	return mode == channelHealthCircuitModeObserve || mode == channelHealthCircuitModeEnforce
+}
+
+func ChannelHealthCircuitMode() string {
+	common.OptionMapRWMutex.RLock()
+	optionMode := strings.TrimSpace(common.OptionMap[ChannelHealthCircuitModeOption])
+	common.OptionMapRWMutex.RUnlock()
+	if optionMode != "" {
+		return NormalizeChannelHealthCircuitMode(optionMode)
+	}
+	envMode := common.GetEnvOrDefaultString(channelHealthCircuitModeEnv, channelHealthCircuitModeObserve)
+	return NormalizeChannelHealthCircuitMode(envMode)
 }
 
 func GetChannelHealth(channelID int) (*ChannelHealth, bool, error) {
@@ -77,6 +117,9 @@ func GetChannelHealth(channelID int) (*ChannelHealth, bool, error) {
 }
 
 func IsChannelHealthRoutable(channelID int) (bool, error) {
+	if ChannelHealthCircuitMode() != channelHealthCircuitModeEnforce {
+		return true, nil
+	}
 	health, found, err := GetChannelHealth(channelID)
 	if err != nil {
 		return false, err
@@ -96,6 +139,43 @@ func IsChannelHealthRoutable(channelID int) (bool, error) {
 	default:
 		return true, nil
 	}
+}
+
+func ListChannelHealth(query ChannelHealthQuery) ([]*ChannelHealth, error) {
+	tx := buildChannelHealthQuery(query)
+	limit := query.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+	var items []*ChannelHealth
+	err := tx.Order("updated_time desc").Limit(limit).Offset(query.StartIdx).Find(&items).Error
+	return items, err
+}
+
+func CountChannelHealth(query ChannelHealthQuery) (int64, error) {
+	var total int64
+	err := buildChannelHealthQuery(query).Count(&total).Error
+	return total, err
+}
+
+func buildChannelHealthQuery(query ChannelHealthQuery) *gorm.DB {
+	tx := DB.Model(&ChannelHealth{})
+	if query.ChannelID > 0 {
+		tx = tx.Where("channel_id = ?", query.ChannelID)
+	}
+	if provider := strings.TrimSpace(strings.ToLower(query.Provider)); provider != "" {
+		tx = tx.Where("provider = ?", provider)
+	}
+	if modelName := strings.TrimSpace(query.ModelName); modelName != "" {
+		tx = tx.Where("model_name = ?", modelName)
+	}
+	if state := strings.TrimSpace(strings.ToLower(query.CircuitState)); state != "" {
+		tx = tx.Where("circuit_state = ?", state)
+	}
+	if errorType := strings.TrimSpace(strings.ToUpper(query.LastErrorType)); errorType != "" {
+		tx = tx.Where("last_error_type = ?", errorType)
+	}
+	return tx
 }
 
 func getOrCreateChannelHealth(channelID int, provider string, modelName string) (*ChannelHealth, error) {

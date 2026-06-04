@@ -23,8 +23,11 @@ import type {
   GetModelResponse,
   GetVendorsResponse,
   GetVendorResponse,
+  ModelRegistry,
   Model,
+  ProviderRegistry,
   Vendor,
+  RegistryListResponse,
   SearchModelsParams,
   SyncUpstreamResponse,
   PreviewUpstreamDiffResponse,
@@ -174,6 +177,66 @@ export async function deleteVendor(
   id: number
 ): Promise<{ success: boolean; message?: string }> {
   const res = await api.delete(`/api/vendors/${id}`)
+  return res.data
+}
+
+// ============================================================================
+// Gateway Registry Management
+// ============================================================================
+
+export async function getModelRegistries(params: {
+  p?: number
+  page_size?: number
+  model?: string
+  provider?: string
+  protocol?: string
+  enabled?: string
+}): Promise<RegistryListResponse<ModelRegistry>> {
+  const res = await api.get('/api/registry/models', { params })
+  return res.data
+}
+
+export async function saveModelRegistry(
+  data: Partial<ModelRegistry>
+): Promise<{ success: boolean; message?: string; data?: ModelRegistry }> {
+  const res = data.id
+    ? await api.put('/api/registry/models', data)
+    : await api.post('/api/registry/models', data)
+  return res.data
+}
+
+export async function deleteModelRegistry(
+  id: number
+): Promise<{ success: boolean; message?: string }> {
+  const res = await api.delete(`/api/registry/models/${id}`)
+  return res.data
+}
+
+export async function getProviderRegistries(params: {
+  p?: number
+  page_size?: number
+  provider?: string
+  protocol?: string
+  health_status?: string
+  enabled?: string
+}): Promise<RegistryListResponse<ProviderRegistry>> {
+  const res = await api.get('/api/registry/providers', { params })
+  return res.data
+}
+
+export async function saveProviderRegistry(
+  data: Partial<ProviderRegistry>
+): Promise<{ success: boolean; message?: string; data?: ProviderRegistry }> {
+  const res = data.id
+    ? await api.put('/api/registry/providers', data)
+    : await api.post('/api/registry/providers', data)
+  return res.data
+}
+
+export async function deleteProviderRegistry(
+  id: number
+): Promise<{ success: boolean; message?: string }> {
+  const res = await api.delete(`/api/registry/providers/${id}`)
   return res.data
 }
 

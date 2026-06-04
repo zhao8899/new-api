@@ -110,6 +110,7 @@ func TestGetChannelHealthReturnsMissingWithoutError(t *testing.T) {
 
 func TestIsChannelHealthRoutableUsesCircuitState(t *testing.T) {
 	setupChannelHealthTestDB(t)
+	t.Setenv("NEW_API_CHANNEL_CIRCUIT_MODE", "enforce")
 
 	ok, err := IsChannelHealthRoutable(501)
 	require.NoError(t, err)
@@ -135,8 +136,74 @@ func TestIsChannelHealthRoutableUsesCircuitState(t *testing.T) {
 	require.False(t, ok)
 }
 
+func TestIsChannelHealthRoutableDefaultsToObserveMode(t *testing.T) {
+	setupChannelHealthTestDB(t)
+
+	for i := 0; i < 3; i++ {
+		_, err := RecordChannelHealthFailure(504, "gemini", "gemini-2.5-pro", "RATE_LIMIT", "quota exceeded", 120)
+		require.NoError(t, err)
+	}
+
+	health, found, err := GetChannelHealth(504)
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Equal(t, ChannelHealthStateCooldown, health.CircuitState)
+
+	ok, err := IsChannelHealthRoutable(504)
+	require.NoError(t, err)
+	require.True(t, ok)
+}
+
+func TestChannelHealthCircuitModeUsesOptionBeforeEnv(t *testing.T) {
+	setupChannelHealthTestDB(t)
+	t.Setenv("NEW_API_CHANNEL_CIRCUIT_MODE", "enforce")
+
+	originalOptionMap := common.OptionMap
+	common.OptionMapRWMutex.Lock()
+	common.OptionMap = map[string]string{ChannelHealthCircuitModeOption: "observe"}
+	common.OptionMapRWMutex.Unlock()
+	t.Cleanup(func() {
+		common.OptionMapRWMutex.Lock()
+		common.OptionMap = originalOptionMap
+		common.OptionMapRWMutex.Unlock()
+	})
+
+	require.Equal(t, channelHealthCircuitModeObserve, ChannelHealthCircuitMode())
+}
+
+func TestListChannelHealthFiltersAndCounts(t *testing.T) {
+	setupChannelHealthTestDB(t)
+
+	_, err := RecordChannelHealthFailure(701, "gemini", "gemini-2.5-pro", "RATE_LIMIT", "quota exceeded", 100)
+	require.NoError(t, err)
+	_, err = RecordChannelHealthFailure(701, "gemini", "gemini-2.5-pro", "RATE_LIMIT", "quota exceeded", 100)
+	require.NoError(t, err)
+	_, err = RecordChannelHealthFailure(701, "gemini", "gemini-2.5-pro", "RATE_LIMIT", "quota exceeded", 100)
+	require.NoError(t, err)
+	_, err = RecordChannelHealthSuccess(702, "openai", "gpt-4.1", 80)
+	require.NoError(t, err)
+
+	query := ChannelHealthQuery{
+		Provider:      "gemini",
+		CircuitState:  ChannelHealthStateCooldown,
+		LastErrorType: "rate_limit",
+		StartIdx:      0,
+		Limit:         10,
+	}
+	total, err := CountChannelHealth(query)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), total)
+
+	items, err := ListChannelHealth(query)
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	require.Equal(t, 701, items[0].ChannelID)
+	require.Equal(t, ChannelHealthStateCooldown, items[0].CircuitState)
+}
+
 func TestIsChannelHealthRoutableAllowsExpiredCooldownProbe(t *testing.T) {
 	setupChannelHealthTestDB(t)
+	t.Setenv("NEW_API_CHANNEL_CIRCUIT_MODE", "enforce")
 
 	health := &ChannelHealth{
 		ChannelID:     503,
@@ -157,6 +224,7 @@ func TestIsChannelHealthRoutableAllowsExpiredCooldownProbe(t *testing.T) {
 
 func TestGetChannelSkipsUnroutableChannelHealth(t *testing.T) {
 	setupChannelHealthTestDB(t)
+	t.Setenv("NEW_API_CHANNEL_CIRCUIT_MODE", "enforce")
 	common.MemoryCacheEnabled = false
 	t.Cleanup(func() {
 		common.MemoryCacheEnabled = false

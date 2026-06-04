@@ -65,6 +65,16 @@ Tune upward when Redis pool wait time appears in traces or request latency. A pr
 
 Do not fall back to in-memory rate limiting for commercial multi-instance traffic. The in-memory limiter is process-local and has a global mutex.
 
+## Gateway Guardrails
+
+Start channel circuit breaking in observe mode so channel health is recorded without blocking production traffic:
+
+```env
+NEW_API_CHANNEL_CIRCUIT_MODE=observe
+```
+
+Switch to `NEW_API_CHANNEL_CIRCUIT_MODE=enforce` only after channel health events, cooldowns, and auto-disable behavior have been reviewed in logs and request traces.
+
 ## Database Sizing
 
 Use PostgreSQL or MySQL with explicit connection limits:
@@ -169,4 +179,3 @@ Do not claim a global concurrency number without a reproducible load test report
 - `/api/status` health check configured.
 - Load test covers both stream and non-stream traffic.
 - Known failing tests are documented before release.
-

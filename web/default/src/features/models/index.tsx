@@ -32,6 +32,7 @@ import { ModelsDialogs } from './components/models-dialogs'
 import { ModelsPrimaryButtons } from './components/models-primary-buttons'
 import { ModelsProvider, useModels } from './components/models-provider'
 import { ModelsTable } from './components/models-table'
+import { RegistryTable } from './components/registry-table'
 import { useModelDeploymentSettings } from './hooks/use-model-deployment-settings'
 import { deploymentsQueryKeys } from './lib'
 import {
@@ -48,6 +49,9 @@ const SECTION_META: Record<ModelsSectionId, { titleKey: string }> = {
   },
   deployments: {
     titleKey: 'Deployments',
+  },
+  registry: {
+    titleKey: 'Registry',
   },
 }
 
@@ -124,12 +128,12 @@ function ModelsContent() {
         <SectionPageLayout.Actions>
           {activeSection === 'metadata' ? (
             <ModelsPrimaryButtons />
-          ) : (
+          ) : activeSection === 'deployments' ? (
             <Button onClick={() => setCreateDeploymentOpen(true)} size='sm'>
               <Plus className='h-4 w-4' />
               {t('Create deployment')}
             </Button>
-          )}
+          ) : null}
         </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
           <div className='space-y-4'>
@@ -144,7 +148,7 @@ function ModelsContent() {
             </Tabs>
             {activeSection === 'metadata' ? (
               <ModelsTable />
-            ) : (
+            ) : activeSection === 'deployments' ? (
               <DeploymentAccessGuard
                 loading={deploymentLoading}
                 loadingPhase={loadingPhase}
@@ -156,6 +160,8 @@ function ModelsContent() {
               >
                 <DeploymentsTable />
               </DeploymentAccessGuard>
+            ) : (
+              <RegistryTable />
             )}
           </div>
         </SectionPageLayout.Content>

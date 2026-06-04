@@ -713,31 +713,27 @@ func shouldRetryTaskRelay(c *gin.Context, channelId int, taskErr *dto.TaskError,
 	if _, ok := c.Get("specific_channel_id"); ok {
 		return false
 	}
-	if taskErr.StatusCode == http.StatusTooManyRequests {
-		return true
-	}
-	if taskErr.StatusCode == 307 {
-		return true
-	}
-	if taskErr.StatusCode/100 == 5 {
-		// 超时不重试
-		if operation_setting.IsAlwaysSkipRetryStatusCode(taskErr.StatusCode) {
-			return false
-		}
-		return true
-	}
-	if taskErr.StatusCode == http.StatusBadRequest {
-		return false
-	}
-	if taskErr.StatusCode == 408 {
-		// azure处理超时不重试
-		return false
-	}
 	if taskErr.LocalError {
 		return false
 	}
 	if taskErr.StatusCode/100 == 2 {
 		return false
 	}
-	return true
+	if operation_setting.IsAlwaysSkipRetryStatusCode(taskErr.StatusCode) {
+		return false
+	}
+	err := taskErr.Error
+	if err == nil {
+		err = errors.New(taskErr.Message)
+	}
+	providerErr := providerpkg.ClassifyHTTPStatus(c.GetString("channel_name"), taskErr.StatusCode, err.Error())
+	decision := providerpkg.NewRetryBudget(providerpkg.RetryBudgetOptions{
+		MaxRetries:    retryTimes,
+		NonIdempotent: true,
+	}).Decide(providerErr)
+	if !decision.Retry {
+		logger.LogWarn(c, fmt.Sprintf("task relay retry skipped (channel #%d): %s", channelId, decision.Reason))
+		return false
+	}
+	return operation_setting.ShouldRetryByStatusCode(taskErr.StatusCode)
 }
