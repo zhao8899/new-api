@@ -267,3 +267,25 @@ export function getTopupReconciliationExportUrl(
   const params = buildTopupReconciliationParams(query)
   return `/api/user/topup/reconciliation/export?${params}`
 }
+
+export async function downloadTopupReconciliationCsv(
+  query: TopupReconciliationQuery
+) {
+  const params = buildTopupReconciliationParams(query)
+  const res = await api.get(`/api/user/topup/reconciliation/export?${params}`, {
+    responseType: 'blob',
+    disableDuplicate: true,
+  })
+  return {
+    blob: res.data as Blob,
+    filename:
+      parseContentDispositionFilename(res.headers['content-disposition']) ??
+      `topup-reconciliation-${query.start_time}-${query.end_time}.csv`,
+  }
+}
+
+function parseContentDispositionFilename(header: unknown) {
+  if (typeof header !== 'string') return null
+  const match = header.match(/filename="?([^";]+)"?/i)
+  return match?.[1] ?? null
+}

@@ -21,8 +21,8 @@ const (
 
 type ModelRegistry struct {
 	Id              int    `json:"id"`
-	ExternalModel   string `json:"external_model" gorm:"size:128;not null;uniqueIndex"`
-	Provider        string `json:"provider" gorm:"size:64;not null;index"`
+	ExternalModel   string `json:"external_model" gorm:"size:128;not null;index;uniqueIndex:uk_model_registry_external_provider,priority:1"`
+	Provider        string `json:"provider" gorm:"size:64;not null;index;uniqueIndex:uk_model_registry_external_provider,priority:2"`
 	UpstreamModel   string `json:"upstream_model" gorm:"size:128;not null;index"`
 	Protocol        string `json:"protocol" gorm:"size:64;not null;index"`
 	Capabilities    string `json:"capabilities" gorm:"type:text"`

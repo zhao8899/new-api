@@ -30,8 +30,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import {
+  downloadTopupReconciliationCsv,
   getTopupReconciliation,
-  getTopupReconciliationExportUrl,
 } from '@/features/wallet/api'
 import type {
   TopupReconciliationQuery,
@@ -76,6 +76,7 @@ export function PaymentReconciliationSection() {
   )
   const [rows, setRows] = useState<TopupReconciliationRow[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
 
   const totals = useMemo(
     () =>
@@ -105,7 +106,22 @@ export function PaymentReconciliationSection() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const exportUrl = getTopupReconciliationExportUrl(query)
+  const exportCsv = async () => {
+    setIsExporting(true)
+    try {
+      const { blob, filename } = await downloadTopupReconciliationCsv(query)
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+    } finally {
+      setIsExporting(false)
+    }
+  }
 
   return (
     <SettingsSection title={t('Payment Reconciliation')}>
@@ -183,11 +199,14 @@ export function PaymentReconciliationSection() {
               <RefreshCw className='h-4 w-4' />
               {t('Refresh')}
             </Button>
-            <Button type='button' variant='outline' asChild>
-              <a href={exportUrl}>
-                <Download className='h-4 w-4' />
-                {t('Export CSV')}
-              </a>
+            <Button
+              type='button'
+              variant='outline'
+              onClick={exportCsv}
+              disabled={isExporting}
+            >
+              <Download className='h-4 w-4' />
+              {t('Export CSV')}
             </Button>
           </div>
         </div>
