@@ -1868,6 +1868,7 @@ func TestApplyParamOverrideWithRelayInfoMixedLegacyAndOperations(t *testing.T) {
 	info := &RelayInfo{
 		RequestHeaders: map[string]string{
 			"Originator": "Codex CLI",
+			"User-Agent": "codex-cli-test",
 		},
 		ChannelMeta: &ChannelMeta{
 			ParamOverride: map[string]interface{}{
@@ -1875,7 +1876,7 @@ func TestApplyParamOverrideWithRelayInfoMixedLegacyAndOperations(t *testing.T) {
 				"operations": []interface{}{
 					map[string]interface{}{
 						"mode":  "pass_headers",
-						"value": []interface{}{"Originator"},
+						"value": []interface{}{"Originator", "User-Agent"},
 					},
 				},
 			},
@@ -1899,6 +1900,9 @@ func TestApplyParamOverrideWithRelayInfoMixedLegacyAndOperations(t *testing.T) {
 	}
 	if info.RuntimeHeadersOverride["originator"] != "Codex CLI" {
 		t.Fatalf("expected originator header to be passed, got: %v", info.RuntimeHeadersOverride["originator"])
+	}
+	if _, exists := info.RuntimeHeadersOverride["user-agent"]; exists {
+		t.Fatalf("expected user-agent header to be blocked")
 	}
 }
 

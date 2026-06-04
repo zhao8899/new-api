@@ -128,6 +128,8 @@ func SetApiRouter(router *gin.Engine) {
 			{
 				adminRoute.GET("/", controller.GetAllUsers)
 				adminRoute.GET("/topup", controller.GetAllTopUps)
+				adminRoute.GET("/topup/reconciliation/export", controller.ExportTopUpReconciliationSummary)
+				adminRoute.GET("/topup/reconciliation", controller.GetTopUpReconciliationSummary)
 				adminRoute.POST("/topup/complete", controller.AdminCompleteTopUp)
 				adminRoute.GET("/search", controller.SearchUsers)
 				adminRoute.GET("/:id/oauth/bindings", controller.GetUserOAuthBindingsByAdmin)
@@ -231,6 +233,9 @@ func SetApiRouter(router *gin.Engine) {
 			channelRoute.GET("/search", controller.SearchChannels)
 			channelRoute.GET("/models", controller.ChannelListModels)
 			channelRoute.GET("/models_enabled", controller.EnabledListModels)
+			channelRoute.GET("/health", controller.GetChannelHealthRecords)
+			channelRoute.GET("/health/mode", controller.GetChannelHealthMode)
+			channelRoute.PUT("/health/mode", middleware.SecureVerificationRequired(), middleware.AuditAction("channel_health.update_mode", "channel_health"), controller.UpdateChannelHealthMode)
 			channelRoute.GET("/:id", controller.GetChannel)
 			channelRoute.POST("/:id/key", middleware.RootAuth(), middleware.CriticalRateLimit(), middleware.DisableCache(), middleware.SecureVerificationRequired(), middleware.AuditAction("channel.view_key", "channel"), controller.GetChannelKey)
 			channelRoute.GET("/test", controller.TestAllChannels)
@@ -358,6 +363,21 @@ func SetApiRouter(router *gin.Engine) {
 			vendorRoute.POST("/", controller.CreateVendorMeta)
 			vendorRoute.PUT("/", controller.UpdateVendorMeta)
 			vendorRoute.DELETE("/:id", controller.DeleteVendorMeta)
+		}
+
+		registryRoute := apiRouter.Group("/registry")
+		registryRoute.Use(middleware.AdminAuth())
+		{
+			registryRoute.GET("/models", controller.GetModelRegistries)
+			registryRoute.GET("/models/:id", controller.GetModelRegistry)
+			registryRoute.POST("/models", middleware.SecureVerificationRequired(), middleware.AuditAction("registry.model.create", "model_registry"), controller.CreateModelRegistry)
+			registryRoute.PUT("/models", middleware.SecureVerificationRequired(), middleware.AuditAction("registry.model.update", "model_registry"), controller.UpdateModelRegistry)
+			registryRoute.DELETE("/models/:id", middleware.SecureVerificationRequired(), middleware.AuditAction("registry.model.delete", "model_registry"), controller.DeleteModelRegistry)
+			registryRoute.GET("/providers", controller.GetProviderRegistries)
+			registryRoute.GET("/providers/:id", controller.GetProviderRegistry)
+			registryRoute.POST("/providers", middleware.SecureVerificationRequired(), middleware.AuditAction("registry.provider.create", "provider_registry"), controller.CreateProviderRegistry)
+			registryRoute.PUT("/providers", middleware.SecureVerificationRequired(), middleware.AuditAction("registry.provider.update", "provider_registry"), controller.UpdateProviderRegistry)
+			registryRoute.DELETE("/providers/:id", middleware.SecureVerificationRequired(), middleware.AuditAction("registry.provider.delete", "provider_registry"), controller.DeleteProviderRegistry)
 		}
 
 		modelsRoute := apiRouter.Group("/models")

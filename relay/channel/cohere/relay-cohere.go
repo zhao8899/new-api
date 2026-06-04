@@ -34,8 +34,16 @@ func requestOpenAI2Cohere(textRequest dto.GeneralOpenAIRequest) *CohereRequest {
 		cohereReq.MaxTokens = 4000
 	}
 	for _, msg := range textRequest.Messages {
+		messageText := msg.StringContent()
+		if messageText == "" {
+			for _, media := range msg.ParseContent() {
+				if media.Type == dto.ContentTypeText {
+					messageText += media.Text
+				}
+			}
+		}
 		if msg.Role == "user" {
-			cohereReq.Message = msg.StringContent()
+			cohereReq.Message = messageText
 		} else {
 			var role string
 			if msg.Role == "assistant" {
@@ -47,7 +55,7 @@ func requestOpenAI2Cohere(textRequest dto.GeneralOpenAIRequest) *CohereRequest {
 			}
 			cohereReq.ChatHistory = append(cohereReq.ChatHistory, ChatHistory{
 				Role:    role,
-				Message: msg.StringContent(),
+				Message: messageText,
 			})
 		}
 	}

@@ -137,11 +137,19 @@ func shouldSkipPassthroughHeader(name string) bool {
 	if name == "" {
 		return true
 	}
-	lower := strings.ToLower(name)
+	return shouldBlockOutgoingHeader(name) || shouldSkipPassthroughHeaderByName(name)
+}
+
+func shouldSkipPassthroughHeaderByName(name string) bool {
+	lower := strings.ToLower(strings.TrimSpace(name))
 	if _, ok := passthroughSkipHeaderNamesLower[lower]; ok {
 		return true
 	}
 	return false
+}
+
+func shouldBlockOutgoingHeader(name string) bool {
+	return common.ShouldBlockOutgoingHeader(name)
 }
 
 func applyHeaderOverridePlaceholders(template string, c *gin.Context, apiKey string) (string, bool, error) {
@@ -159,6 +167,9 @@ func applyHeaderOverridePlaceholders(template string, c *gin.Context, apiKey str
 		}
 		if c == nil || c.Request == nil {
 			return "", false, fmt.Errorf("missing request context for client_header placeholder")
+		}
+		if shouldBlockOutgoingHeader(name) {
+			return "", false, nil
 		}
 		clientHeaderValue := c.Request.Header.Get(name)
 		if strings.TrimSpace(clientHeaderValue) == "" {
@@ -265,6 +276,9 @@ func processHeaderOverride(info *common.RelayInfo, c *gin.Context) (map[string]s
 		if key == "" {
 			continue
 		}
+		if shouldBlockOutgoingHeader(key) {
+			continue
+		}
 
 		str, ok := v.(string)
 		if !ok {
@@ -296,6 +310,9 @@ func applyHeaderOverrideToRequest(req *http.Request, headerOverride map[string]s
 		return
 	}
 	for key, value := range headerOverride {
+		if shouldBlockOutgoingHeader(key) {
+			continue
+		}
 		req.Header.Set(key, value)
 		// set Host in req
 		if strings.EqualFold(key, "Host") {

@@ -236,6 +236,9 @@ func migrateDB() error {
 	if err := migrateTokenModelLimitsToText(); err != nil {
 		return err
 	}
+	if err := migrateModelRegistryExternalModelIndex(); err != nil {
+		return err
+	}
 
 	err := DB.AutoMigrate(
 		&Channel{},
@@ -253,6 +256,9 @@ func migrateDB() error {
 		&Model{},
 		&ModelRegistry{},
 		&ProviderRegistry{},
+		&OpenAIFile{},
+		&OpenAIFineTune{},
+		&OpenAIFineTuneEvent{},
 		&ChannelHealth{},
 		&RequestTrace{},
 		&AuditEvent{},
@@ -285,6 +291,9 @@ func migrateDB() error {
 }
 
 func migrateDBFast() error {
+	if err := migrateModelRegistryExternalModelIndex(); err != nil {
+		return err
+	}
 
 	var wg sync.WaitGroup
 
@@ -307,6 +316,9 @@ func migrateDBFast() error {
 		{&Model{}, "Model"},
 		{&ModelRegistry{}, "ModelRegistry"},
 		{&ProviderRegistry{}, "ProviderRegistry"},
+		{&OpenAIFile{}, "OpenAIFile"},
+		{&OpenAIFineTune{}, "OpenAIFineTune"},
+		{&OpenAIFineTuneEvent{}, "OpenAIFineTuneEvent"},
 		{&ChannelHealth{}, "ChannelHealth"},
 		{&RequestTrace{}, "RequestTrace"},
 		{&AuditEvent{}, "AuditEvent"},
@@ -356,6 +368,20 @@ func migrateDBFast() error {
 		}
 	}
 	common.SysLog("database migrated")
+	return nil
+}
+
+func migrateModelRegistryExternalModelIndex() error {
+	if DB == nil || !DB.Migrator().HasTable(&ModelRegistry{}) {
+		return nil
+	}
+	for _, indexName := range []string{"idx_model_registries_external_model", "external_model"} {
+		if DB.Migrator().HasIndex(&ModelRegistry{}, indexName) {
+			if err := DB.Migrator().DropIndex(&ModelRegistry{}, indexName); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 

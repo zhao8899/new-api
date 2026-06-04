@@ -31,8 +31,16 @@ func requestOpenAI2Tencent(a *Adaptor, request dto.GeneralOpenAIRequest) *Tencen
 	messages := make([]*TencentMessage, 0, len(request.Messages))
 	for i := 0; i < len(request.Messages); i++ {
 		message := request.Messages[i]
+		content := message.StringContent()
+		if content == "" {
+			for _, media := range message.ParseContent() {
+				if media.Type == dto.ContentTypeText {
+					content += media.Text
+				}
+			}
+		}
 		messages = append(messages, &TencentMessage{
-			Content: message.StringContent(),
+			Content: content,
 			Role:    message.Role,
 		})
 	}

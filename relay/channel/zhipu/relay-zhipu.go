@@ -80,10 +80,18 @@ func getZhipuToken(apikey string) string {
 func requestOpenAI2Zhipu(request dto.GeneralOpenAIRequest) *ZhipuRequest {
 	messages := make([]ZhipuMessage, 0, len(request.Messages))
 	for _, message := range request.Messages {
+		messageText := message.StringContent()
+		if messageText == "" {
+			for _, media := range message.ParseContent() {
+				if media.Type == dto.ContentTypeText {
+					messageText += media.Text
+				}
+			}
+		}
 		if message.Role == "system" {
 			messages = append(messages, ZhipuMessage{
 				Role:    "system",
-				Content: message.StringContent(),
+				Content: messageText,
 			})
 			messages = append(messages, ZhipuMessage{
 				Role:    "user",
@@ -92,7 +100,7 @@ func requestOpenAI2Zhipu(request dto.GeneralOpenAIRequest) *ZhipuRequest {
 		} else {
 			messages = append(messages, ZhipuMessage{
 				Role:    message.Role,
-				Content: message.StringContent(),
+				Content: messageText,
 			})
 		}
 	}

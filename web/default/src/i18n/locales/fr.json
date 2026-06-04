@@ -4567,6 +4567,17 @@
     "Zero retention": "Aucune rétention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Registry": "Registre",
+    "Model Registry": "Registre des modèles",
+    "Provider Registry": "Registre des fournisseurs",
+    "Failed to save registry": "Échec de l'enregistrement du registre",
+    "Registry saved": "Registre enregistré",
+    "Failed to delete registry": "Échec de la suppression du registre",
+    "Registry deleted": "Registre supprimé",
+    "External model": "Modèle externe",
+    "Upstream model": "Modèle amont",
+    "Protocol": "Protocole",
+    "Auth type": "Type d'authentification"
   }
 }

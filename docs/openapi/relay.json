@@ -64,10 +64,10 @@
       "name": "未实现"
     },
     {
-      "name": "未实现/Fine-tunes"
+      "name": "Fine-tunes"
     },
     {
-      "name": "未实现/Files"
+      "name": "Files"
     }
   ],
   "paths": {
@@ -1918,17 +1918,28 @@
     },
     "/v1/fine-tunes": {
       "get": {
-        "summary": "列出微调任务 (未实现)",
+        "summary": "List fine-tune jobs",
         "deprecated": false,
-        "description": "此接口尚未实现",
+        "description": "List the current user's fine-tune jobs.",
         "operationId": "listFineTunes",
         "tags": [
-          "未实现/Fine-tunes"
+          "Fine-tunes"
         ],
         "parameters": [],
         "responses": {
-          "501": {
-            "description": "未实现",
+          "200": {
+            "description": "Fine-tune list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIFineTuneListResponse"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "description": "Bad request",
             "content": {
               "application/json": {
                 "schema": {
@@ -1946,27 +1957,48 @@
         ]
       },
       "post": {
-        "summary": "创建微调任务 (未实现)",
+        "summary": "Create a fine-tune job",
         "deprecated": false,
-        "description": "此接口尚未实现",
+        "description": "Create a fine-tune job owned by the current user.",
         "operationId": "createFineTune",
         "tags": [
-          "未实现/Fine-tunes"
+          "Fine-tunes"
         ],
         "parameters": [],
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {}
+                "$ref": "#/components/schemas/CreateFineTuneRequest"
               }
             }
           }
         },
         "responses": {
-          "501": {
-            "description": "未实现",
+          "200": {
+            "description": "Fine-tune job created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIFineTune"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "404": {
+            "description": "Training or validation file not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -1986,12 +2018,12 @@
     },
     "/v1/fine-tunes/{fine_tune_id}": {
       "get": {
-        "summary": "获取微调任务详情 (未实现)",
+        "summary": "Retrieve a fine-tune job",
         "deprecated": false,
-        "description": "此接口尚未实现",
+        "description": "Retrieve a fine-tune job owned by the current user.",
         "operationId": "retrieveFineTune",
         "tags": [
-          "未实现/Fine-tunes"
+          "Fine-tunes"
         ],
         "parameters": [
           {
@@ -2006,8 +2038,30 @@
           }
         ],
         "responses": {
-          "501": {
-            "description": "未实现",
+          "200": {
+            "description": "Fine-tune job details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIFineTune"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "404": {
+            "description": "Fine-tune job not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -2027,12 +2081,12 @@
     },
     "/v1/fine-tunes/{fine_tune_id}/cancel": {
       "post": {
-        "summary": "取消微调任务 (未实现)",
+        "summary": "Cancel a fine-tune job",
         "deprecated": false,
-        "description": "此接口尚未实现",
+        "description": "Cancel a fine-tune job owned by the current user.",
         "operationId": "cancelFineTune",
         "tags": [
-          "未实现/Fine-tunes"
+          "Fine-tunes"
         ],
         "parameters": [
           {
@@ -2047,8 +2101,30 @@
           }
         ],
         "responses": {
-          "501": {
-            "description": "未实现",
+          "200": {
+            "description": "Fine-tune job cancelled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIFineTune"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "404": {
+            "description": "Fine-tune job not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -2068,12 +2144,12 @@
     },
     "/v1/fine-tunes/{fine_tune_id}/events": {
       "get": {
-        "summary": "获取微调任务事件 (未实现)",
+        "summary": "List fine-tune events",
         "deprecated": false,
-        "description": "此接口尚未实现",
+        "description": "List events for a fine-tune job owned by the current user.",
         "operationId": "listFineTuneEvents",
         "tags": [
-          "未实现/Fine-tunes"
+          "Fine-tunes"
         ],
         "parameters": [
           {
@@ -2088,8 +2164,30 @@
           }
         ],
         "responses": {
-          "501": {
-            "description": "未实现",
+          "200": {
+            "description": "Fine-tune event list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIFineTuneEventListResponse"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "404": {
+            "description": "Fine-tune job not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -2109,17 +2207,28 @@
     },
     "/v1/files": {
       "get": {
-        "summary": "列出文件 (未实现)",
+        "summary": "List files",
         "deprecated": false,
-        "description": "此接口尚未实现",
+        "description": "List files owned by the current user.",
         "operationId": "listFiles",
         "tags": [
-          "未实现/Files"
+          "Files"
         ],
         "parameters": [],
         "responses": {
-          "501": {
-            "description": "未实现",
+          "200": {
+            "description": "File list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIFileListResponse"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "description": "Bad request",
             "content": {
               "application/json": {
                 "schema": {
@@ -2137,12 +2246,12 @@
         ]
       },
       "post": {
-        "summary": "上传文件 (未实现)",
+        "summary": "Upload a file",
         "deprecated": false,
-        "description": "此接口尚未实现",
+        "description": "Upload a file for the current user.",
         "operationId": "createFile",
         "tags": [
-          "未实现/Files"
+          "Files"
         ],
         "parameters": [],
         "requestBody": {
@@ -2166,8 +2275,19 @@
           }
         },
         "responses": {
-          "501": {
-            "description": "未实现",
+          "200": {
+            "description": "File uploaded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIFile"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "description": "Bad request",
             "content": {
               "application/json": {
                 "schema": {
@@ -2187,12 +2307,12 @@
     },
     "/v1/files/{file_id}": {
       "get": {
-        "summary": "获取文件信息 (未实现)",
+        "summary": "Retrieve file metadata",
         "deprecated": false,
-        "description": "此接口尚未实现",
+        "description": "Retrieve file metadata owned by the current user.",
         "operationId": "retrieveFile",
         "tags": [
-          "未实现/Files"
+          "Files"
         ],
         "parameters": [
           {
@@ -2207,8 +2327,30 @@
           }
         ],
         "responses": {
-          "501": {
-            "description": "未实现",
+          "200": {
+            "description": "File metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIFile"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "404": {
+            "description": "File not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -2226,12 +2368,12 @@
         ]
       },
       "delete": {
-        "summary": "删除文件 (未实现)",
+        "summary": "Delete a file",
         "deprecated": false,
-        "description": "此接口尚未实现",
+        "description": "Delete a file owned by the current user.",
         "operationId": "deleteFile",
         "tags": [
-          "未实现/Files"
+          "Files"
         ],
         "parameters": [
           {
@@ -2246,8 +2388,30 @@
           }
         ],
         "responses": {
-          "501": {
-            "description": "未实现",
+          "200": {
+            "description": "File deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIFileDeleteResponse"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "404": {
+            "description": "File not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -2267,12 +2431,12 @@
     },
     "/v1/files/{file_id}/content": {
       "get": {
-        "summary": "获取文件内容 (未实现)",
+        "summary": "Download file content",
         "deprecated": false,
-        "description": "此接口尚未实现",
+        "description": "Download file content owned by the current user.",
         "operationId": "downloadFile",
         "tags": [
-          "未实现/Files"
+          "Files"
         ],
         "parameters": [
           {
@@ -2287,8 +2451,31 @@
           }
         ],
         "responses": {
-          "501": {
-            "description": "未实现",
+          "200": {
+            "description": "File content",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "404": {
+            "description": "File not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -2420,6 +2607,187 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Model"
+            }
+          }
+        }
+      },
+      "OpenAIFile": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "file-20260602120000abc123"
+          },
+          "object": {
+            "type": "string",
+            "example": "file"
+          },
+          "bytes": {
+            "type": "integer",
+            "example": 128
+          },
+          "created_at": {
+            "type": "integer",
+            "example": 1717329600
+          },
+          "filename": {
+            "type": "string",
+            "example": "training.jsonl"
+          },
+          "purpose": {
+            "type": "string",
+            "example": "fine-tune"
+          }
+        }
+      },
+      "OpenAIFileListResponse": {
+        "type": "object",
+        "properties": {
+          "object": {
+            "type": "string",
+            "example": "list"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpenAIFile"
+            }
+          }
+        }
+      },
+      "OpenAIFileDeleteResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "object": {
+            "type": "string",
+            "example": "file"
+          },
+          "deleted": {
+            "type": "boolean",
+            "example": true
+          }
+        }
+      },
+      "CreateFineTuneRequest": {
+        "type": "object",
+        "required": [
+          "model",
+          "training_file"
+        ],
+        "properties": {
+          "model": {
+            "type": "string",
+            "example": "gpt-4o-mini"
+          },
+          "training_file": {
+            "type": "string",
+            "example": "file-20260602120000abc123"
+          },
+          "validation_file": {
+            "type": "string",
+            "example": "file-20260602120500def456"
+          }
+        }
+      },
+      "OpenAIFineTune": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "ft-20260602121000abc123"
+          },
+          "object": {
+            "type": "string",
+            "example": "fine-tune"
+          },
+          "created_at": {
+            "type": "integer",
+            "example": 1717329600
+          },
+          "updated_at": {
+            "type": "integer",
+            "example": 1717329660
+          },
+          "model": {
+            "type": "string",
+            "example": "gpt-4o-mini"
+          },
+          "training_file": {
+            "type": "string",
+            "example": "file-20260602120000abc123"
+          },
+          "validation_file": {
+            "type": "string",
+            "example": "file-20260602120500def456"
+          },
+          "fine_tuned_model": {
+            "type": "string",
+            "example": "ft:gpt-4o-mini:custom-model"
+          },
+          "status": {
+            "type": "string",
+            "example": "pending"
+          }
+        }
+      },
+      "OpenAIFineTuneListResponse": {
+        "type": "object",
+        "properties": {
+          "object": {
+            "type": "string",
+            "example": "list"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpenAIFineTune"
+            }
+          }
+        }
+      },
+      "OpenAIFineTuneEvent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "ftevent-20260602121001abc123"
+          },
+          "object": {
+            "type": "string",
+            "example": "fine-tune-event"
+          },
+          "created_at": {
+            "type": "integer",
+            "example": 1717329601000000000
+          },
+          "level": {
+            "type": "string",
+            "example": "info"
+          },
+          "message": {
+            "type": "string",
+            "example": "Fine-tune job created"
+          },
+          "fine_tune_id": {
+            "type": "string",
+            "example": "ft-20260602121000abc123"
+          }
+        }
+      },
+      "OpenAIFineTuneEventListResponse": {
+        "type": "object",
+        "properties": {
+          "object": {
+            "type": "string",
+            "example": "list"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpenAIFineTuneEvent"
             }
           }
         }

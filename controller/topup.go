@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"bytes"
+	"encoding/csv"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -353,10 +355,6 @@ func EpayNotify(c *gin.Context) {
 	verifyInfo, err := client.Verify(params)
 	if err == nil && verifyInfo.VerifyStatus {
 		logger.LogInfo(c.Request.Context(), fmt.Sprintf("易支付 webhook 验签成功 trade_no=%s callback_type=%s trade_status=%s client_ip=%s verify_info=%q", verifyInfo.ServiceTradeNo, verifyInfo.Type, verifyInfo.TradeStatus, c.ClientIP(), common.GetJsonString(verifyInfo)))
-		_, err := c.Writer.Write([]byte("success"))
-		if err != nil {
-			logger.LogError(c.Request.Context(), fmt.Sprintf("易支付 webhook 响应写入失败 trade_no=%s client_ip=%s error=%q", verifyInfo.ServiceTradeNo, c.ClientIP(), err.Error()))
-		}
 	} else {
 		_, err := c.Writer.Write([]byte("fail"))
 		if err != nil {
@@ -373,41 +371,25 @@ func EpayNotify(c *gin.Context) {
 	if verifyInfo.TradeStatus == epay.StatusTradeSuccess {
 		LockOrder(verifyInfo.ServiceTradeNo)
 		defer UnlockOrder(verifyInfo.ServiceTradeNo)
-		topUp := model.GetTopUpByTradeNo(verifyInfo.ServiceTradeNo)
-		if topUp == nil {
-			logger.LogWarn(c.Request.Context(), fmt.Sprintf("易支付 回调订单不存在 trade_no=%s callback_type=%s client_ip=%s verify_info=%q", verifyInfo.ServiceTradeNo, verifyInfo.Type, c.ClientIP(), common.GetJsonString(verifyInfo)))
+		topUp, quotaToAdd, err := model.CompleteEpayTopUp(verifyInfo.ServiceTradeNo, verifyInfo.Type)
+		if err != nil {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("易支付 完成充值订单失败 trade_no=%s callback_type=%s client_ip=%s error=%q verify_info=%q", verifyInfo.ServiceTradeNo, verifyInfo.Type, c.ClientIP(), err.Error(), common.GetJsonString(verifyInfo)))
+			_, writeErr := c.Writer.Write([]byte("fail"))
+			if writeErr != nil {
+				logger.LogError(c.Request.Context(), fmt.Sprintf("易支付 webhook 响应写入失败 trade_no=%s client_ip=%s error=%q", verifyInfo.ServiceTradeNo, c.ClientIP(), writeErr.Error()))
+			}
 			return
 		}
-		if topUp.PaymentProvider != model.PaymentProviderEpay {
-			logger.LogWarn(c.Request.Context(), fmt.Sprintf("易支付 订单支付网关不匹配 trade_no=%s order_provider=%s callback_type=%s client_ip=%s", verifyInfo.ServiceTradeNo, topUp.PaymentProvider, verifyInfo.Type, c.ClientIP()))
-			return
-		}
-		if topUp.Status == common.TopUpStatusPending {
-			if topUp.PaymentMethod != verifyInfo.Type {
-				logger.LogInfo(c.Request.Context(), fmt.Sprintf("易支付 实际支付方式与订单不同 trade_no=%s order_payment_method=%s actual_type=%s client_ip=%s", verifyInfo.ServiceTradeNo, topUp.PaymentMethod, verifyInfo.Type, c.ClientIP()))
-				topUp.PaymentMethod = verifyInfo.Type
-			}
-			topUp.Status = common.TopUpStatusSuccess
-			err := topUp.Update()
-			if err != nil {
-				logger.LogError(c.Request.Context(), fmt.Sprintf("易支付 更新充值订单失败 trade_no=%s user_id=%d client_ip=%s error=%q topup=%q", topUp.TradeNo, topUp.UserId, c.ClientIP(), err.Error(), common.GetJsonString(topUp)))
-				return
-			}
-			//user, _ := model.GetUserById(topUp.UserId, false)
-			//user.Quota += topUp.Amount * 500000
-			dAmount := decimal.NewFromInt(int64(topUp.Amount))
-			dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
-			quotaToAdd := int(dAmount.Mul(dQuotaPerUnit).IntPart())
-			err = model.IncreaseUserQuota(topUp.UserId, quotaToAdd, true)
-			if err != nil {
-				logger.LogError(c.Request.Context(), fmt.Sprintf("易支付 更新用户额度失败 trade_no=%s user_id=%d client_ip=%s quota_to_add=%d error=%q topup=%q", topUp.TradeNo, topUp.UserId, c.ClientIP(), quotaToAdd, err.Error(), common.GetJsonString(topUp)))
-				return
-			}
+		if quotaToAdd > 0 {
 			logger.LogInfo(c.Request.Context(), fmt.Sprintf("易支付 充值成功 trade_no=%s user_id=%d client_ip=%s quota_to_add=%d money=%.2f topup=%q", topUp.TradeNo, topUp.UserId, c.ClientIP(), quotaToAdd, topUp.Money, common.GetJsonString(topUp)))
 			model.RecordTopupLog(topUp.UserId, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%f", logger.LogQuota(quotaToAdd), topUp.Money), c.ClientIP(), topUp.PaymentMethod, "epay")
 		}
 	} else {
 		logger.LogInfo(c.Request.Context(), fmt.Sprintf("易支付 webhook 忽略事件 trade_no=%s callback_type=%s trade_status=%s client_ip=%s verify_info=%q", verifyInfo.ServiceTradeNo, verifyInfo.Type, verifyInfo.TradeStatus, c.ClientIP(), common.GetJsonString(verifyInfo)))
+	}
+	_, err = c.Writer.Write([]byte("success"))
+	if err != nil {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("易支付 webhook 响应写入失败 trade_no=%s client_ip=%s error=%q", verifyInfo.ServiceTradeNo, c.ClientIP(), err.Error()))
 	}
 }
 
@@ -485,6 +467,108 @@ func GetAllTopUps(c *gin.Context) {
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(topups)
 	common.ApiSuccess(c, pageInfo)
+}
+
+func parseTopUpReconciliationQuery(c *gin.Context) (model.TopUpReconciliationQuery, error) {
+	now := common.GetTimestamp()
+	startTime, err := strconv.ParseInt(c.DefaultQuery("start_time", strconv.FormatInt(now-24*60*60, 10)), 10, 64)
+	if err != nil || startTime < 0 {
+		return model.TopUpReconciliationQuery{}, fmt.Errorf("invalid start_time")
+	}
+	endTime, err := strconv.ParseInt(c.DefaultQuery("end_time", strconv.FormatInt(now, 10)), 10, 64)
+	if err != nil || endTime < 0 {
+		return model.TopUpReconciliationQuery{}, fmt.Errorf("invalid end_time")
+	}
+	if endTime > 0 && startTime > 0 && endTime < startTime {
+		return model.TopUpReconciliationQuery{}, fmt.Errorf("end_time must be greater than or equal to start_time")
+	}
+
+	return model.TopUpReconciliationQuery{
+		StartTime:       startTime,
+		EndTime:         endTime,
+		PaymentProvider: c.Query("payment_provider"),
+		PaymentMethod:   c.Query("payment_method"),
+		Status:          c.Query("status"),
+	}, nil
+}
+
+func GetTopUpReconciliationSummary(c *gin.Context) {
+	query, err := parseTopUpReconciliationQuery(c)
+	if err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+
+	rows, err := model.GetTopUpReconciliationSummary(query)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	common.ApiSuccess(c, gin.H{
+		"start_time": query.StartTime,
+		"end_time":   query.EndTime,
+		"items":      rows,
+	})
+}
+
+func ExportTopUpReconciliationSummary(c *gin.Context) {
+	query, err := parseTopUpReconciliationQuery(c)
+	if err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+
+	rows, err := model.GetTopUpReconciliationSummary(query)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	var buf bytes.Buffer
+	buf.WriteString("\xEF\xBB\xBF")
+	writer := csv.NewWriter(&buf)
+	if err := writer.Write([]string{
+		"payment_provider",
+		"payment_method",
+		"status",
+		"order_count",
+		"total_amount",
+		"total_money",
+		"first_create_time",
+		"last_create_time",
+		"last_complete_time",
+	}); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	for _, row := range rows {
+		if err := writer.Write([]string{
+			row.PaymentProvider,
+			row.PaymentMethod,
+			row.Status,
+			strconv.FormatInt(row.OrderCount, 10),
+			strconv.FormatInt(row.TotalAmount, 10),
+			strconv.FormatFloat(row.TotalMoney, 'f', 2, 64),
+			strconv.FormatInt(row.FirstCreateTime, 10),
+			strconv.FormatInt(row.LastCreateTime, 10),
+			strconv.FormatInt(row.LastCompleteTime, 10),
+		}); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
+	writer.Flush()
+	if err := writer.Error(); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	filename := fmt.Sprintf("topup-reconciliation-%d-%d.csv", query.StartTime, query.EndTime)
+	c.Header("Content-Type", "text/csv; charset=utf-8")
+	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	c.String(http.StatusOK, buf.String())
 }
 
 type AdminCompleteTopupRequest struct {

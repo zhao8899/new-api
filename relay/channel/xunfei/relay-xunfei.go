@@ -29,10 +29,18 @@ func requestOpenAI2Xunfei(request dto.GeneralOpenAIRequest, xunfeiAppId string, 
 	messages := make([]XunfeiMessage, 0, len(request.Messages))
 	shouldCovertSystemMessage := !strings.HasSuffix(request.Model, "3.5")
 	for _, message := range request.Messages {
+		messageText := message.StringContent()
+		if messageText == "" {
+			for _, media := range message.ParseContent() {
+				if media.Type == dto.ContentTypeText {
+					messageText += media.Text
+				}
+			}
+		}
 		if message.Role == "system" && shouldCovertSystemMessage {
 			messages = append(messages, XunfeiMessage{
 				Role:    "user",
-				Content: message.StringContent(),
+				Content: messageText,
 			})
 			messages = append(messages, XunfeiMessage{
 				Role:    "assistant",
@@ -41,7 +49,7 @@ func requestOpenAI2Xunfei(request dto.GeneralOpenAIRequest, xunfeiAppId string, 
 		} else {
 			messages = append(messages, XunfeiMessage{
 				Role:    message.Role,
-				Content: message.StringContent(),
+				Content: messageText,
 			})
 		}
 	}

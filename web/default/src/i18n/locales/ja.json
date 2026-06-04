@@ -514,7 +514,7 @@
     "Base multipliers applied when users select specific groups.": "ユーザーが特定のグループを選択したときに適用される基本乗数。",
     "Base Price": "基本価格",
     "Base rate limit windows for this account.": "このアカウント向けの基本レート制限ウィンドウ。",
-    "Base URL": "ベースURL",
+    "Base URL": "ベース URL",
     "Base URL is required for this channel type": "このチャンネルタイプには Base URL が必要です",
     "Base URL of your Uptime Kuma instance": "Uptime KumaインスタンスのベースURL",
     "Basic Authentication": "基本認証",
@@ -1934,7 +1934,7 @@
     "Header Passthrough (X-Request-Id)": "ヘッダーパススルー（X-Request-Id）",
     "Header Value (supports string or JSON mapping)": "ヘッダー値（文字列またはJSONマッピング対応）",
     "header. Anthropic-formatted endpoints accept the": " ヘッダーが必要です。Anthropic 形式のエンドポイントでは",
-    "Health": "ヘルスケア",
+    "Health": "ヘルス",
     "Healthy": "正常",
     "Hidden — verify to reveal": "非表示 — 確認して表示",
     "Hide": "非表示にする",
@@ -4567,6 +4567,17 @@
     "Zero retention": "データ保持なし",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "Registry": "レジストリ",
+    "Model Registry": "モデルレジストリ",
+    "Provider Registry": "プロバイダーレジストリ",
+    "Failed to save registry": "レジストリの保存に失敗しました",
+    "Registry saved": "レジストリを保存しました",
+    "Failed to delete registry": "レジストリの削除に失敗しました",
+    "Registry deleted": "レジストリを削除しました",
+    "External model": "外部モデル",
+    "Upstream model": "上流モデル",
+    "Protocol": "プロトコル",
+    "Auth type": "認証タイプ"
   }
 }

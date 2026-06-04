@@ -402,7 +402,7 @@ func sanitizeHeaderOverrideMap(source map[string]interface{}) map[string]interfa
 	target := make(map[string]interface{}, len(source))
 	for key, value := range source {
 		normalizedKey := normalizeHeaderContextKey(key)
-		if normalizedKey == "" {
+		if ShouldBlockOutgoingHeader(normalizedKey) {
 			continue
 		}
 		normalizedValue := strings.TrimSpace(fmt.Sprintf("%v", value))
@@ -415,6 +415,43 @@ func sanitizeHeaderOverrideMap(source map[string]interface{}) map[string]interfa
 		target[normalizedKey] = normalizedValue
 	}
 	return target
+}
+
+var sensitiveOutgoingHeaderNamesLower = map[string]struct{}{
+	"forwarded":            {},
+	"x-forwarded-for":      {},
+	"x-forwarded-host":     {},
+	"x-forwarded-port":     {},
+	"x-forwarded-proto":    {},
+	"x-forwarded-protocol": {},
+	"x-real-ip":            {},
+	"cf-connecting-ip":     {},
+	"true-client-ip":       {},
+
+	// Do not forward client environment headers via generic relay paths.
+	// Provider-specific adaptors may still set required headers explicitly.
+	"user-agent":   {},
+	"origin":       {},
+	"referer":      {},
+	"http-referer": {},
+}
+
+func ShouldBlockOutgoingHeader(name string) bool {
+	lower := strings.ToLower(strings.TrimSpace(name))
+	if lower == "" {
+		return true
+	}
+	// Never forward ingress/client identity headers to upstream providers.
+	// new-api may still inspect these headers locally for auth, auditing, or
+	// routing, but upstream providers should only observe the gateway's own
+	// egress identity unless a provider-specific adaptor explicitly sets its
+	// required headers.
+	if _, ok := sensitiveOutgoingHeaderNamesLower[lower]; ok {
+		return true
+	}
+	return strings.HasPrefix(lower, "cf-access-") ||
+		strings.HasPrefix(lower, "sec-fetch-") ||
+		strings.HasPrefix(lower, "sec-ch-")
 }
 
 func isHeaderPassthroughRuleKeyForOverride(key string) bool {

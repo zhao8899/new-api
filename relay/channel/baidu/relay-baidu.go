@@ -44,12 +44,20 @@ func requestOpenAI2Baidu(request dto.GeneralOpenAIRequest) *BaiduChatRequest {
 		baiduRequest.MaxOutputTokens = &maxTokens
 	}
 	for _, message := range request.Messages {
+		messageText := message.StringContent()
+		if messageText == "" {
+			for _, media := range message.ParseContent() {
+				if media.Type == dto.ContentTypeText {
+					messageText += media.Text
+				}
+			}
+		}
 		if message.Role == "system" {
-			baiduRequest.System = message.StringContent()
+			baiduRequest.System = messageText
 		} else {
 			baiduRequest.Messages = append(baiduRequest.Messages, BaiduMessage{
 				Role:    message.Role,
-				Content: message.StringContent(),
+				Content: messageText,
 			})
 		}
 	}

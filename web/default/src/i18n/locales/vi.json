@@ -4567,6 +4567,17 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Registry": "Sổ đăng ký",
+    "Model Registry": "Sổ đăng ký mô hình",
+    "Provider Registry": "Sổ đăng ký nhà cung cấp",
+    "Failed to save registry": "Không thể lưu sổ đăng ký",
+    "Registry saved": "Đã lưu sổ đăng ký",
+    "Failed to delete registry": "Không thể xóa sổ đăng ký",
+    "Registry deleted": "Đã xóa sổ đăng ký",
+    "External model": "Mô hình bên ngoài",
+    "Upstream model": "Mô hình thượng nguồn",
+    "Protocol": "Giao thức",
+    "Auth type": "Loại xác thực"
   }
 }

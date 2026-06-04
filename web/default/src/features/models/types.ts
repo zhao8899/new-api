@@ -78,6 +78,33 @@ export interface PrefillGroup {
   description?: string
 }
 
+export interface ModelRegistry {
+  id: number
+  external_model: string
+  provider: string
+  upstream_model: string
+  protocol: string
+  capabilities?: string
+  context_window: number
+  max_output_tokens: number
+  enabled: boolean
+  priority: number
+  created_time: number
+  updated_time: number
+}
+
+export interface ProviderRegistry {
+  id: number
+  provider: string
+  protocol: string
+  base_url?: string
+  auth_type: string
+  enabled: boolean
+  health_status: string
+  created_time: number
+  updated_time: number
+}
+
 // ============================================================================
 // API Request/Response Types
 // ============================================================================
@@ -220,6 +247,17 @@ export interface PrefillGroupsResponse {
   data?: PrefillGroup[]
 }
 
+export interface RegistryListResponse<T> {
+  success: boolean
+  message?: string
+  data?: {
+    items: T[]
+    total: number
+    page: number
+    page_size: number
+  }
+}
+
 // ============================================================================
 // Form Data Types
 // ============================================================================
@@ -304,7 +342,7 @@ export type SyncSource = 'official' | 'config'
 /**
  * Model tab type
  */
-export type ModelTabCategory = 'metadata' | 'deployments'
+export type ModelTabCategory = 'metadata' | 'deployments' | 'registry'
 
 /**
  * Deployment entity from API

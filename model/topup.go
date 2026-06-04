@@ -24,6 +24,26 @@ type TopUp struct {
 	Status          string  `json:"status"`
 }
 
+type TopUpReconciliationQuery struct {
+	StartTime       int64
+	EndTime         int64
+	PaymentProvider string
+	PaymentMethod   string
+	Status          string
+}
+
+type TopUpReconciliationRow struct {
+	PaymentProvider  string  `json:"payment_provider"`
+	PaymentMethod    string  `json:"payment_method"`
+	Status           string  `json:"status"`
+	OrderCount       int64   `json:"order_count"`
+	TotalAmount      int64   `json:"total_amount"`
+	TotalMoney       float64 `json:"total_money"`
+	FirstCreateTime  int64   `json:"first_create_time"`
+	LastCreateTime   int64   `json:"last_create_time"`
+	LastCompleteTime int64   `json:"last_complete_time"`
+}
+
 const (
 	PaymentMethodStripe       = "stripe"
 	PaymentMethodCreem        = "creem"
@@ -45,6 +65,7 @@ var (
 	ErrPaymentMethodMismatch = errors.New("payment method mismatch")
 	ErrTopUpNotFound         = errors.New("topup not found")
 	ErrTopUpStatusInvalid    = errors.New("topup status invalid")
+	ErrTopUpQuotaInvalid     = errors.New("topup quota invalid")
 )
 
 func (topUp *TopUp) Insert() error {
@@ -159,6 +180,63 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 	return nil
 }
 
+func CompleteEpayTopUp(tradeNo string, actualPaymentMethod string) (*TopUp, int, error) {
+	if tradeNo == "" {
+		return nil, 0, errors.New("未提供支付单号")
+	}
+
+	refCol := "`trade_no`"
+	if common.UsingPostgreSQL {
+		refCol = `"trade_no"`
+	}
+
+	var completedTopUp *TopUp
+	var quotaToAdd int
+
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		topUp := &TopUp{}
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(topUp).Error; err != nil {
+			return ErrTopUpNotFound
+		}
+		if topUp.PaymentProvider != PaymentProviderEpay {
+			return ErrPaymentMethodMismatch
+		}
+		if topUp.Status == common.TopUpStatusSuccess {
+			completedTopUp = topUp
+			return nil
+		}
+		if topUp.Status != common.TopUpStatusPending {
+			return ErrTopUpStatusInvalid
+		}
+
+		if actualPaymentMethod != "" && topUp.PaymentMethod != actualPaymentMethod {
+			topUp.PaymentMethod = actualPaymentMethod
+		}
+
+		quotaToAdd = int(decimal.NewFromInt(topUp.Amount).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart())
+		if quotaToAdd <= 0 {
+			return ErrTopUpQuotaInvalid
+		}
+
+		topUp.CompleteTime = common.GetTimestamp()
+		topUp.Status = common.TopUpStatusSuccess
+		if err := tx.Save(topUp).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd)).Error; err != nil {
+			return err
+		}
+
+		completedTopUp = topUp
+		return nil
+	})
+
+	if err != nil {
+		return nil, 0, err
+	}
+	return completedTopUp, quotaToAdd, nil
+}
+
 // topUpQueryWindowSeconds 限制充值记录查询的时间窗口（秒）。
 const topUpQueryWindowSeconds int64 = 30 * 24 * 60 * 60
 
@@ -230,6 +308,33 @@ func GetAllTopUps(pageInfo *common.PageInfo) (topups []*TopUp, total int64, err 
 	}
 
 	return topups, total, nil
+}
+
+func GetTopUpReconciliationSummary(query TopUpReconciliationQuery) ([]TopUpReconciliationRow, error) {
+	tx := DB.Model(&TopUp{})
+	if query.StartTime > 0 {
+		tx = tx.Where("create_time >= ?", query.StartTime)
+	}
+	if query.EndTime > 0 {
+		tx = tx.Where("create_time <= ?", query.EndTime)
+	}
+	if query.PaymentProvider != "" {
+		tx = tx.Where("payment_provider = ?", query.PaymentProvider)
+	}
+	if query.PaymentMethod != "" {
+		tx = tx.Where("payment_method = ?", query.PaymentMethod)
+	}
+	if query.Status != "" {
+		tx = tx.Where("status = ?", query.Status)
+	}
+
+	var rows []TopUpReconciliationRow
+	err := tx.
+		Select("payment_provider, payment_method, status, COUNT(*) AS order_count, COALESCE(SUM(amount), 0) AS total_amount, COALESCE(SUM(money), 0) AS total_money, COALESCE(MIN(create_time), 0) AS first_create_time, COALESCE(MAX(create_time), 0) AS last_create_time, COALESCE(MAX(complete_time), 0) AS last_complete_time").
+		Group("payment_provider, payment_method, status").
+		Order("payment_provider ASC, payment_method ASC, status ASC").
+		Scan(&rows).Error
+	return rows, err
 }
 
 // searchTopUpCountHardLimit 搜索充值记录时 COUNT 的安全上限，

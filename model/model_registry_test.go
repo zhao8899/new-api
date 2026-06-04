@@ -79,6 +79,36 @@ func TestGetModelRegistryByExternalModelIgnoresDisabled(t *testing.T) {
 	require.Nil(t, got)
 }
 
+func TestGetModelRegistryByExternalModelUsesHighestPriorityAcrossProviders(t *testing.T) {
+	setupModelRegistryTestDB(t)
+
+	lowPriority := &ModelRegistry{
+		ExternalModel: "gpt-commercial",
+		Provider:      "openai",
+		UpstreamModel: "gpt-low",
+		Protocol:      ModelProtocolOpenAI,
+		Enabled:       true,
+		Priority:      1,
+	}
+	highPriority := &ModelRegistry{
+		ExternalModel: "gpt-commercial",
+		Provider:      "azure-openai",
+		UpstreamModel: "gpt-high",
+		Protocol:      ModelProtocolAzureOpenAI,
+		Enabled:       true,
+		Priority:      10,
+	}
+
+	require.NoError(t, lowPriority.Insert())
+	require.NoError(t, highPriority.Insert())
+
+	got, found, err := GetModelRegistryByExternalModel("gpt-commercial")
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Equal(t, "azure-openai", got.Provider)
+	require.Equal(t, "gpt-high", got.UpstreamModel)
+}
+
 func TestModelRegistryMigrationIncludesRegistry(t *testing.T) {
 	setupModelRegistryTestDB(t)
 

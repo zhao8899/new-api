@@ -71,6 +71,28 @@ func SetRelayRouter(router *gin.Engine) {
 	relayV1Router.Use(middleware.SystemPerformanceCheck())
 	relayV1Router.Use(middleware.TokenAuth())
 	relayV1Router.Use(middleware.ModelRequestRateLimit())
+	filesRouter := router.Group("/v1/files")
+	filesRouter.Use(middleware.RouteTag("relay"))
+	filesRouter.Use(middleware.SystemPerformanceCheck())
+	filesRouter.Use(middleware.TokenAuth())
+	{
+		filesRouter.GET("", middleware.DownloadRateLimit(), controller.ListRelayFiles)
+		filesRouter.POST("", middleware.UploadRateLimit(), controller.CreateRelayFile)
+		filesRouter.GET("/:id", middleware.DownloadRateLimit(), controller.RetrieveRelayFile)
+		filesRouter.DELETE("/:id", middleware.UploadRateLimit(), controller.DeleteRelayFile)
+		filesRouter.GET("/:id/content", middleware.DownloadRateLimit(), controller.DownloadRelayFileContent)
+	}
+	fineTunesRouter := router.Group("/v1/fine-tunes")
+	fineTunesRouter.Use(middleware.RouteTag("relay"))
+	fineTunesRouter.Use(middleware.SystemPerformanceCheck())
+	fineTunesRouter.Use(middleware.TokenAuth())
+	{
+		fineTunesRouter.GET("", middleware.DownloadRateLimit(), controller.ListRelayFineTunes)
+		fineTunesRouter.POST("", middleware.UploadRateLimit(), controller.CreateRelayFineTune)
+		fineTunesRouter.GET("/:id", middleware.DownloadRateLimit(), controller.RetrieveRelayFineTune)
+		fineTunesRouter.POST("/:id/cancel", middleware.UploadRateLimit(), controller.CancelRelayFineTune)
+		fineTunesRouter.GET("/:id/events", middleware.DownloadRateLimit(), controller.ListRelayFineTuneEvents)
+	}
 	{
 		// WebSocket 路由（统一到 Relay）
 		wsRouter := relayV1Router.Group("")
@@ -152,16 +174,6 @@ func SetRelayRouter(router *gin.Engine) {
 
 		// not implemented
 		httpRouter.POST("/images/variations", controller.RelayNotImplemented)
-		httpRouter.GET("/files", controller.RelayNotImplemented)
-		httpRouter.POST("/files", controller.RelayNotImplemented)
-		httpRouter.DELETE("/files/:id", controller.RelayNotImplemented)
-		httpRouter.GET("/files/:id", controller.RelayNotImplemented)
-		httpRouter.GET("/files/:id/content", controller.RelayNotImplemented)
-		httpRouter.POST("/fine-tunes", controller.RelayNotImplemented)
-		httpRouter.GET("/fine-tunes", controller.RelayNotImplemented)
-		httpRouter.GET("/fine-tunes/:id", controller.RelayNotImplemented)
-		httpRouter.POST("/fine-tunes/:id/cancel", controller.RelayNotImplemented)
-		httpRouter.GET("/fine-tunes/:id/events", controller.RelayNotImplemented)
 		httpRouter.DELETE("/models/:model", controller.RelayNotImplemented)
 	}
 

@@ -514,7 +514,7 @@
     "Base multipliers applied when users select specific groups.": "Базовые множители, применяемые, когда пользователи выбирают определенные группы.",
     "Base Price": "Базовая цена",
     "Base rate limit windows for this account.": "Окна базовых лимитов для этого аккаунта.",
-    "Base URL": "Адрес API",
+    "Base URL": "Базовый URL",
     "Base URL is required for this channel type": "Для этого типа канала требуется Base URL",
     "Base URL of your Uptime Kuma instance": "Базовый URL вашего экземпляра Uptime Kuma",
     "Basic Authentication": "Базовая аутентификация",
@@ -1934,7 +1934,7 @@
     "Header Passthrough (X-Request-Id)": "Проброс заголовка (X-Request-Id)",
     "Header Value (supports string or JSON mapping)": "Значение заголовка (строка или JSON-маппинг)",
     "header. Anthropic-formatted endpoints accept the": ". Эндпоинты формата Anthropic вместо этого принимают",
-    "Health": "Здоровье",
+    "Health": "Состояние",
     "Healthy": "В норме",
     "Hidden — verify to reveal": "Скрыто — подтвердите, чтобы показать",
     "Hide": "Скрыть",
@@ -4567,6 +4567,17 @@
     "Zero retention": "Без хранения данных",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Registry": "Реестр",
+    "Model Registry": "Реестр моделей",
+    "Provider Registry": "Реестр поставщиков",
+    "Failed to save registry": "Не удалось сохранить реестр",
+    "Registry saved": "Реестр сохранен",
+    "Failed to delete registry": "Не удалось удалить реестр",
+    "Registry deleted": "Реестр удален",
+    "External model": "Внешняя модель",
+    "Upstream model": "Вышестоящая модель",
+    "Protocol": "Протокол",
+    "Auth type": "Тип аутентификации"
   }
 }

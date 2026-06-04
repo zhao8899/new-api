@@ -391,6 +391,11 @@ docker run --name new-api -d --restart always \
 
 </details>
 
+> [!TIP]
+> **Windows 11 推荐方案：** 当前项目在 Windows 平台上的推荐部署路径是 `Windows 11 + Docker Desktop + WSL2 + Linux containers`。
+> 这比原生 Windows 源码部署更稳妥，因为项目本身以 Docker 交付为主，而源码部署还需要先完成前端构建再编译后端。
+> 如果你要在住宅网络环境下，通过 `Cloudflare Tunnel + Access` 对外提供稳定远程访问，请参考 [Seattle Residential Deployment Manual](./docs/deployment/SEATTLE_RESIDENTIAL_DEPLOYMENT_MANUAL.md)。
+
 ### ⚠️ 多机部署注意事项
 
 > [!WARNING]
